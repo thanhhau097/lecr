@@ -13,6 +13,9 @@ class ContrastiveLoss(torch.nn.Module):
     """
     Contrastive loss function.
     Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+
+    0 if dissimilar;
+    1 if similar.
     """
 
     def __init__(self, margin=2.0):
@@ -30,7 +33,7 @@ class CustomTrainer(Trainer):
         outputs = model(inputs["topic_inputs"].to(device), inputs["content_inputs"].to(device))
         loss_fct = ContrastiveLoss()
         labels = inputs.get("labels")
-        loss = loss_fct(outputs.view(-1), labels.float())
+        loss = loss_fct(outputs.view(-1), 1 - labels.float())
         if return_outputs:
             return (loss, outputs)
         return loss
