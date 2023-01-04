@@ -30,7 +30,12 @@ class ContrastiveLoss(torch.nn.Module):
 class CustomTrainer(Trainer):
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        outputs = model(inputs["topic_inputs"].to(device), inputs["content_inputs"].to(device))
+        for k, v in inputs["topic_inputs"].items():
+            inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
+        for k, v in inputs["content_inputs"].items():
+            inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
+
+        outputs = model(inputs["topic_inputs"], inputs["content_inputs"])
         loss_fct = ContrastiveLoss()
         labels = inputs.get("labels")
         loss = loss_fct(outputs.view(-1), 1 - labels.float())
