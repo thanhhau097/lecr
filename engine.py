@@ -97,8 +97,8 @@ class CustomTrainer(Trainer):
             return (loss, None, None)
         outputs = outputs.float()
         outputs = nested_detach(outputs)
-        del inputs["images"]
-        del inputs["features"]
+        del inputs["topic_inputs"]
+        del inputs["content_inputs"]
         return loss, outputs, inputs["labels"]
 
 
