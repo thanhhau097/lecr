@@ -1,5 +1,6 @@
 from typing import Dict
 
+import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, matthews_corrcoef
