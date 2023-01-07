@@ -80,14 +80,20 @@ def main():
 
     # Initialize trainer
     print("Initializing model...")
-    model = Model(tokenizer=train_dataset.tokenizer, model_name=model_args.model_name)
+    model = Model(tokenizer=train_dataset.tokenizer, model_name=model_args.model_name, objective=model_args.objective)
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
         if "state_dict" in checkpoint:
             checkpoint = checkpoint.pop("state_dict")
-        checkpoint = {k.replace("_orig_mod.", ""): v for k, v in checkpoint.items()}
-        model.load_state_dict(checkpoint)
+        checkpoint = {k[6:]: v for k, v in checkpoint.items()}
+        model.model.load_state_dict(checkpoint)
+
+        if "fc.weight" in checkpoint:
+            model.fc.load_state_dict({
+                "weight": checkpoint["fc.weight"],
+                "bias": checkpoint["fc.bias"]
+            })
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)

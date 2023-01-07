@@ -4,7 +4,9 @@ CUDA_VISIBLE_DEVICES=1 python train.py --output_dir ./outputs/ --evaluation_stra
 ```
 
 # TODO:
-- [ ] Add all positive pairs to the training set
+- [x] Add all positive pairs to the training set
+- [ ] Add pair content-content
+- [ ] SentenceBert Softmax loss: https://arxiv.org/pdf/1908.10084.pdf
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public

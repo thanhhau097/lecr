@@ -17,7 +17,7 @@ class MeanPooling(nn.Module):
     
 
 class Model(nn.Module):
-    def __init__(self, tokenizer, model_name="xlm-roberta-base"):
+    def __init__(self, tokenizer, model_name="xlm-roberta-base", objective="classification"):
         super(Model, self).__init__()
         self.config = AutoConfig.from_pretrained(model_name, output_hidden_states = True)
         self.config.hidden_dropout = 0.0
@@ -30,6 +30,10 @@ class Model(nn.Module):
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.pool = MeanPooling()
 
+        self.objective = objective
+        if self.objective == "classification":
+            self.fc = nn.Linear(768 * 3, 1)
+
     def feature(self, inputs):
         outputs = self.model(**inputs)
         last_hidden_state = outputs.last_hidden_state
@@ -40,4 +44,7 @@ class Model(nn.Module):
         topic_features = self.feature(topic_inputs)
         content_features = self.feature(content_inputs)
 
-        return cosine_similarity(topic_features, content_features)
+        if self.objective == "classification":
+            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1))
+        else:
+            return cosine_similarity(topic_features, content_features)

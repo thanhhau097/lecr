@@ -12,3 +12,4 @@ class ModelArguments:
     resume: Optional[str] = field(
         default=None, metadata={"help": "Path of model checkpoint"}
     )
+    objective: str = field(default="classification", metadata={"help": "classification or siamese"})

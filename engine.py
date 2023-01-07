@@ -35,11 +35,16 @@ class CustomTrainer(Trainer):
             inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
         for k, v in inputs["content_inputs"].items():
             inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
-
         outputs = model(inputs["topic_inputs"], inputs["content_inputs"])
-        loss_fct = ContrastiveLoss()
+
         labels = inputs.get("labels")
-        loss = loss_fct(outputs.view(-1), 1 - labels.float())
+        if model.objective == "classification":
+            loss_fct = F.binary_cross_entropy_with_logits
+            loss = loss_fct(outputs.view(-1), labels.float())
+        else:
+            loss_fct = ContrastiveLoss()
+            loss = loss_fct(outputs.view(-1), 1 - labels.float())
+
         if return_outputs:
             return (loss, outputs)
         return loss
