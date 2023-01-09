@@ -31,7 +31,7 @@ class Model(nn.Module):
         self.pool = MeanPooling()
 
         self.objective = objective
-        if self.objective == "classification":
+        if self.objective in ["classification", "both"]:
             self.fc = nn.Linear(768 * 3, 1)
 
     def feature(self, inputs):
@@ -46,5 +46,9 @@ class Model(nn.Module):
 
         if self.objective == "classification":
             return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1))
-        else:
+        elif self.objective == "siamese":
             return cosine_similarity(topic_features, content_features)
+        elif self.objective == "both":
+            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1)), cosine_similarity(topic_features, content_features)
+        else:
+            raise ValueError("objective should be classification/siamese/both")

@@ -41,9 +41,13 @@ class CustomTrainer(Trainer):
         if model.objective == "classification":
             loss_fct = F.binary_cross_entropy_with_logits
             loss = loss_fct(outputs.view(-1), labels.float())
-        else:
+        elif model.objective == "siamese":
             loss_fct = ContrastiveLoss()
             loss = loss_fct(outputs.view(-1), 1 - labels.float())
+        elif model.objective == "both":
+            loss = F.binary_cross_entropy_with_logits(outputs[0].view(-1), labels.float()) + ContrastiveLoss()(outputs[1].view(-1), 1 - labels.float())
+        else:
+            raise ValueError("objective should be classification/siamese/both")
 
         if return_outputs:
             return (loss, outputs)
@@ -100,6 +104,9 @@ class CustomTrainer(Trainer):
 
         if prediction_loss_only:
             return (loss, None, None)
+
+        if type(outputs) == tuple:
+            outputs = outputs[0]  # return only classification outputs
         outputs = outputs.float()
         outputs = nested_detach(outputs)
         del inputs["topic_inputs"]
@@ -108,16 +115,10 @@ class CustomTrainer(Trainer):
 
 
 def compute_metrics(eval_preds):
-    # predictions = torch.sigmoid(torch.from_numpy(eval_preds.predictions)).numpy()
-    # fbeta_score = pfbeta_torch(
-    #     eval_preds.label_ids[0],
-    #     predictions,
-    # )
+    predictions = torch.sigmoid(torch.from_numpy(eval_preds.predictions)).numpy()
 
-    # auc = roc_auc_score(eval_preds.label_ids, predictions)
-    # score = matthews_corrcoef(eval_preds.label_ids, predictions > 0.5)
-    # return {"pF1": fbeta_score, "AUC": auc, "matthews_corrcoef": score}
-    return {"f1": 0}
+    auc = roc_auc_score(eval_preds.label_ids, predictions)
+    return {"AUC": auc}
 
 # =========================================================================================
 # F2 score metric
