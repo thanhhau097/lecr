@@ -3,7 +3,7 @@ from typing import Dict
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, matthews_corrcoef
+from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
 from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
@@ -116,9 +116,10 @@ class CustomTrainer(Trainer):
 
 def compute_metrics(eval_preds):
     predictions = torch.sigmoid(torch.from_numpy(eval_preds.predictions)).numpy()
-
     auc = roc_auc_score(eval_preds.label_ids, predictions)
-    return {"AUC": auc}
+    accuracy = accuracy_score(eval_preds.label_ids, predictions > 0.5)
+    f1 = f1_score(eval_preds.label_ids, predictions > 0.5)
+    return {"AUC": auc, "acc": accuracy, "f1": f1}
 
 # =========================================================================================
 # F2 score metric
