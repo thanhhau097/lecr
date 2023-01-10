@@ -3,6 +3,9 @@ from torch import nn
 from transformers import AutoModel, AutoConfig
 from torch.nn.functional import cosine_similarity
 
+from dataset import init_tokenizer
+
+
 class MeanPooling(nn.Module):
     def __init__(self):
         super(MeanPooling, self).__init__()
@@ -17,7 +20,7 @@ class MeanPooling(nn.Module):
     
 
 class Model(nn.Module):
-    def __init__(self, tokenizer, model_name="xlm-roberta-base", objective="classification"):
+    def __init__(self, tokenizer_name="xlm-roberta-base", model_name="xlm-roberta-base", objective="classification"):
         super(Model, self).__init__()
         self.config = AutoConfig.from_pretrained(model_name, output_hidden_states = True)
         self.config.hidden_dropout = 0.0
@@ -25,7 +28,7 @@ class Model(nn.Module):
         self.config.attention_dropout = 0.0
         self.config.attention_probs_dropout_prob = 0.0
 
-        self.tokenizer = tokenizer
+        self.tokenizer = init_tokenizer(tokenizer_name)
         self.model = AutoModel.from_pretrained(model_name, config = self.config)
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.pool = MeanPooling()

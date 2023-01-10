@@ -1,6 +1,9 @@
 import torch
 from torch.utils.data import Dataset, default_collate
+from tqdm import tqdm
 from transformers import AutoTokenizer
+
+from utils import clean_text
 
 
 LANGUAGE_TOKENS = [
@@ -64,19 +67,72 @@ OTHER_TOKENS = [
 ]
 
 
-class LECRDataset(Dataset):
-    def __init__(self, df, tokenizer_name='xlm-roberta-base', max_len=512):
-        self.df = df
-        self.topic_texts = self.df.topic_text.values
-        self.content_texts = self.df.content_text.values
-        self.labels = self.df.target.values
+def init_tokenizer(tokenizer_name):
+    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
+    tokenizer.add_special_tokens(dict(additional_special_tokens=LANGUAGE_TOKENS + CATEGORY_TOKENS + LEVEL_TOKENS + KIND_TOKENS + OTHER_TOKENS))
+    return tokenizer
 
-        self.tokenizer = AutoTokenizer.from_pretrained(tokenizer_name)
-        self.tokenizer.add_special_tokens(dict(additional_special_tokens=LANGUAGE_TOKENS + CATEGORY_TOKENS + LEVEL_TOKENS + KIND_TOKENS + OTHER_TOKENS))
+
+class LECRDataset(Dataset):
+    def __init__(self, correlation_df, topic_df, content_df, tokenizer_name='xlm-roberta-base', max_len=512):
+        self.correlation_df = correlation_df
+        self.topic_df = topic_df
+        self.content_df = content_df
+        self.labels = self.correlation_df.target.values
+        self.topic_texts, self.content_texts = self.process_csv()
+
+        self.tokenizer = init_tokenizer(tokenizer_name)
         self.max_len = max_len
 
+    def process_csv(self):
+        # Fillna titles
+        self.topic_df['title'].fillna("", inplace = True)
+        self.content_df['title'].fillna("", inplace = True)
+
+        # Fillna descriptions
+        self.topic_df['description'].fillna("", inplace = True)
+        self.content_df['description'].fillna("", inplace = True)
+
+        # clean text
+        print("Cleaning text data for topics")
+        self.topic_df["title"] = self.topic_df["title"].apply(clean_text)
+        self.topic_df["description"] = self.topic_df["description"].apply(clean_text)
+
+        print("Cleaning text data for content")
+        self.content_df["title"] = self.content_df["title"].apply(clean_text)
+        self.content_df["description"] = self.content_df["description"].apply(clean_text)
+        # self.content_df["text"] = self.content_df["text"].apply(clean_text)
+
+        # get concatenated texts
+        topic_dict = {}
+        for i, (index, row) in tqdm(enumerate(self.topic_df.iterrows())):
+            text = "<|topic|>" + f"<|lang_{row['language']}|>" + f"<|category_{row['category']}|>" + f"<|level_{row['level']}|>"
+            text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>"
+            topic_dict[row["id"]] = text
+
+        content_dict = {}
+        for i, (index, row) in tqdm(enumerate(self.content_df.iterrows())):
+            text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
+            text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>" # + "<s_text>" + row["text"] + "</s_text>"
+            content_dict[row["id"]] = text[:2048]
+
+        # get text pairs
+        topic_ids = self.correlation_df.topics_ids.values
+        content_ids = self.correlation_df.content_ids.values
+
+        topic_texts = []
+        content_texts = []
+
+        for topic_id in topic_ids:
+            topic_texts.append(topic_dict[topic_id])
+
+        for content_id in content_ids:
+            content_texts.append(content_dict[content_id])
+
+        return topic_texts, content_texts
+
     def __len__(self):
-        return len(self.df)
+        return len(self.labels)
 
     def __getitem__(self, idx):
         topic_text = self.topic_texts[idx]

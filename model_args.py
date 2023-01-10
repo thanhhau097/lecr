@@ -9,6 +9,7 @@ class ModelArguments:
     """
 
     model_name: str = field(default="xlm-roberta-base", metadata={"help": "timm model name"})
+    tokenizer_name: str = field(default="xlm-roberta-base", metadata={"help": "timm model name"})
     resume: Optional[str] = field(
         default=None, metadata={"help": "Path of model checkpoint"}
     )

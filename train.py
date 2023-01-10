@@ -63,24 +63,32 @@ def main():
     set_seed(training_args.seed)
     fold = data_args.fold
 
-    print("Reading data CSV...")
+    print("Reading correlation data CSV", data_args.data_path)
     data_df = pd.read_csv(data_args.data_path)
+    print("Reading topic data CSV", data_args.topic_path)
+    topic_df = pd.read_csv(data_args.topic_path)
+    print("Reading content data CSV", data_args.content_path)
+    content_df = pd.read_csv(data_args.content_path)
 
     train_dataset = LECRDataset(
         data_df[data_df["fold"] != fold],
-        tokenizer_name=model_args.model_name,
+        topic_df=topic_df,
+        content_df=content_df,
+        tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len
     )
 
     val_dataset = LECRDataset(
         data_df[data_df["fold"] == fold],
-        tokenizer_name=model_args.model_name,
+        topic_df=topic_df,
+        content_df=content_df,
+        tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len
     )
 
     # Initialize trainer
     print("Initializing model...")
-    model = Model(tokenizer=train_dataset.tokenizer, model_name=model_args.model_name, objective=model_args.objective)
+    model = Model(tokenizer_name=model_args.tokenizer_name, model_name=model_args.model_name, objective=model_args.objective)
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
