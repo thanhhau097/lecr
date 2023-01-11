@@ -35,7 +35,7 @@ class Model(nn.Module):
 
         self.objective = objective
         if self.objective in ["classification", "both"]:
-            self.fc = nn.Linear(768 * 3, 1)
+            self.fc = nn.Linear(self.model.config.hidden_size * 3, 1)
 
     def feature(self, inputs):
         outputs = self.model(**inputs)
