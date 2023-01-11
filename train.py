@@ -69,21 +69,27 @@ def main():
     topic_df = pd.read_csv(data_args.topic_path)
     print("Reading content data CSV", data_args.content_path)
     content_df = pd.read_csv(data_args.content_path)
+    print("Reading correlation data CSV", data_args.correlation_path)
+    correlation_df = pd.read_csv(data_args.correlation_path)
 
     train_dataset = LECRDataset(
-        data_df[data_df["fold"] != fold],
+        supervised_df=data_df[data_df["fold"] != fold],
         topic_df=topic_df,
         content_df=content_df,
+        correlation_df=correlation_df,
         tokenizer_name=model_args.tokenizer_name,
-        max_len=data_args.max_len
+        max_len=data_args.max_len,
+        use_content_pair=data_args.use_content_pair,
     )
 
     val_dataset = LECRDataset(
-        data_df[data_df["fold"] == fold],
+        supervised_df=data_df[data_df["fold"] == fold],
         topic_df=topic_df,
         content_df=content_df,
+        correlation_df=correlation_df,
         tokenizer_name=model_args.tokenizer_name,
-        max_len=data_args.max_len
+        max_len=data_args.max_len,
+        use_content_pair=False,
     )
 
     # Initialize trainer

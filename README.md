@@ -5,7 +5,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 
 # TODO:
 - [x] Add all positive pairs to the training set
-- [ ] Add pair content-content
+- [x] Add pair content-content
 - [x] SentenceBert Softmax loss: https://arxiv.org/pdf/1908.10084.pdf
 - [ ] Add parent and child topic to topic text
 

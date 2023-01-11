@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 import torch
 from torch.utils.data import Dataset, default_collate
 from tqdm import tqdm
@@ -74,11 +76,13 @@ def init_tokenizer(tokenizer_name):
 
 
 class LECRDataset(Dataset):
-    def __init__(self, correlation_df, topic_df, content_df, tokenizer_name='xlm-roberta-base', max_len=512):
-        self.correlation_df = correlation_df
+    def __init__(self, supervised_df, topic_df, content_df, correlation_df, tokenizer_name='xlm-roberta-base', max_len=512, use_content_pair=False):
+        self.supervised_df = supervised_df
         self.topic_df = topic_df
         self.content_df = content_df
-        self.labels = self.correlation_df.target.values
+        self.correlation_df = correlation_df
+        self.use_content_pair = use_content_pair
+        self.labels = self.supervised_df.target.values
         self.topic_texts, self.content_texts = self.process_csv()
 
         self.tokenizer = init_tokenizer(tokenizer_name)
@@ -117,8 +121,8 @@ class LECRDataset(Dataset):
             content_dict[row["id"]] = text[:2048]
 
         # get text pairs
-        topic_ids = self.correlation_df.topics_ids.values
-        content_ids = self.correlation_df.content_ids.values
+        topic_ids = self.supervised_df.topics_ids.values
+        content_ids = self.supervised_df.content_ids.values
 
         topic_texts = []
         content_texts = []
@@ -128,6 +132,42 @@ class LECRDataset(Dataset):
 
         for content_id in content_ids:
             content_texts.append(content_dict[content_id])
+
+        use_all_pairs = False  # use all pair, no need to be in the intersection of content_ids of topic ids
+        if self.use_content_pair:
+            # todo: create content pairs from each topic 
+            content_to_topic = defaultdict(lambda: [])
+            topic_to_content = defaultdict(lambda: [])
+
+            pairs = set()
+
+            for i, row in tqdm(correlations.iterrows()):
+                content_list = row["content_ids"].split(" ")
+                
+                for content_id in content_list:
+                    content_to_topic[content_id].append(row["topic_id"])
+                    topic_to_content[row["topic_id"]].append(content_id)
+                
+                if len(content_list) <= 1:
+                    continue
+                
+                if use_all_pairs:
+                    for idx1 in range(len(content_list) - 1):
+                        for idx2 in range(idx1 + 1, len(content_list)):
+                            if (content_list[idx1], content_list[idx2]) not in pairs and (content_list[idx2], content_list[idx1]) not in pairs:
+                                pairs.add((content_list[idx1], content_list[idx2]))
+
+            if not use_all_pairs:          
+                for content_id, topics in tqdm(content_to_topic.items()):
+                    intersection_contents = list(set.intersection(*[set(topic_to_content[topic_id]) for topic_id in topics]))
+                    for idx1 in range(len(intersection_contents) - 1):
+                        for idx2 in range(idx1 + 1, len(intersection_contents)):
+                            if (intersection_contents[idx1], intersection_contents[idx2]) not in pairs and (intersection_contents[idx2], intersection_contents[idx1]) not in pairs:
+                                pairs.add((intersection_contents[idx1], intersection_contents[idx2]))
+
+            for pair in pairs:
+                topic_texts.append(content_dict[pair[0]])
+                content_texts.append(content_dict[pair[1]])
 
         return topic_texts, content_texts
 
@@ -145,7 +185,7 @@ class LECRDataset(Dataset):
             return_tensors = None, 
             add_special_tokens = True, 
             max_length = self.max_len,
-            pad_to_max_length = True,
+            padding='max_length',
             truncation = True
         )
         for k, v in topic_inputs.items():
@@ -157,7 +197,7 @@ class LECRDataset(Dataset):
             return_tensors = None, 
             add_special_tokens = True, 
             max_length = self.max_len,
-            pad_to_max_length = True,
+            padding='max_length',
             truncation = True
         )
         for k, v in content_inputs.items():
