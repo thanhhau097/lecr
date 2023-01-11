@@ -141,7 +141,7 @@ class LECRDataset(Dataset):
 
             pairs = set()
 
-            for i, row in tqdm(correlations.iterrows()):
+            for i, row in tqdm(self.correlation_df.iterrows()):
                 content_list = row["content_ids"].split(" ")
                 
                 for content_id in content_list:
