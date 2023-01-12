@@ -14,3 +14,4 @@ class ModelArguments:
         default=None, metadata={"help": "Path of model checkpoint"}
     )
     objective: str = field(default="classification", metadata={"help": "classification or siamese"})
+    is_sentence_transformers: bool = field(default=False, metadata={"help": "Use sentence transformers"})
