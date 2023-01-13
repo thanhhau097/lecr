@@ -23,6 +23,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
 - [ ] Hard negatives: https://www.kaggle.com/competitions/learning-equality-curriculum-recommendations/discussion/376873
 - [ ] Try another loss function: https://www.sbert.net/docs/package_reference/losses.html#cosinesimilarityloss
+- [ ] 2 stages pipeline: https://www.sbert.net/examples/applications/retrieve_rerank/README.html. https://www.sbert.net/examples/applications/cross-encoder/README.html
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public

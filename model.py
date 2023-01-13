@@ -50,7 +50,6 @@ class Model(nn.Module):
 
     def feature(self, inputs):
         outputs = self.model(**inputs)
-        # TODO: update embedding when using sentence-transformers, it's not last hidden state
         feature = self.pool(outputs, inputs['attention_mask'])
         return feature
 
@@ -61,8 +60,8 @@ class Model(nn.Module):
         if self.objective == "classification":
             return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1))
         elif self.objective == "siamese":
-            return cosine_similarity(topic_features, content_features)
+            return topic_features, content_features
         elif self.objective == "both":
-            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1)), cosine_similarity(topic_features, content_features)
+            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1)), (topic_features, content_features)
         else:
             raise ValueError("objective should be classification/siamese/both")

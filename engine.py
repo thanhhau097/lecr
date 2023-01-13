@@ -9,22 +9,49 @@ from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
 
+from typing import Iterable, Dict
+import torch.nn.functional as F
+from torch import nn, Tensor
+from enum import Enum
 
-class ContrastiveLoss(torch.nn.Module):
+
+class SiameseDistanceMetric(Enum):
     """
-    Contrastive loss function.
-    Based on: http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
+    The metric for the contrastive loss
+    """
+    EUCLIDEAN = lambda x, y: F.pairwise_distance(x, y, p=2)
+    MANHATTAN = lambda x, y: F.pairwise_distance(x, y, p=1)
+    COSINE_DISTANCE = lambda x, y: 1-F.cosine_similarity(x, y)
 
-    0 if dissimilar;
-    1 if similar.
+
+ass OnlineContrastiveLoss(nn.Module):
+    """
+    Online Contrastive loss. Similar to ConstrativeLoss, but it selects hard positive (positives that are far apart)
+    and hard negative pairs (negatives that are close) and computes the loss only for these pairs. Often yields
+    better performances than  ConstrativeLoss.
+
+    :param distance_metric: Function that returns a distance between two emeddings. The class SiameseDistanceMetric contains pre-defined metrices that can be used
+    :param margin: Negative samples (label == 0) should have a distance of at least the margin value.
+    :param size_average: Average by the size of the mini-batch.
     """
 
-    def __init__(self, margin=2.0):
-        super(ContrastiveLoss, self).__init__()
+    def __init__(self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5):
+        super(OnlineContrastiveLoss, self).__init__()
         self.margin = margin
+        self.distance_metric = distance_metric
 
-    def forward(self, dist, label):
-        loss = torch.mean(1/2*(label) * torch.pow(dist, 2) + 1/2*(1-label) * torch.pow(torch.clamp(self.margin - dist, min=0.0), 2))
+    def forward(self, embeddings, labels, size_average=False):
+        distance_matrix = self.distance_metric(embeddings[0], embeddings[1])
+        negs = distance_matrix[labels == 0]
+        poss = distance_matrix[labels == 1]
+
+        # select hard positive and hard negative pairs
+        negative_pairs = negs[negs < (poss.max() if len(poss) > 1 else negs.mean())]
+        positive_pairs = poss[poss > (negs.min() if len(negs) > 1 else poss.mean())]
+
+        positive_loss = positive_pairs.pow(2).sum()
+        negative_loss = F.relu(self.margin - negative_pairs).pow(2).sum()
+        loss = positive_loss + negative_loss
         return loss
 
 
@@ -42,10 +69,10 @@ class CustomTrainer(Trainer):
             loss_fct = F.binary_cross_entropy_with_logits
             loss = loss_fct(outputs.view(-1), labels.float())
         elif model.objective == "siamese":
-            loss_fct = ContrastiveLoss()
-            loss = loss_fct(outputs.view(-1), 1 - labels.float())
+            loss_fct = OnlineContrastiveLoss()
+            loss = loss_fct(outputs, labels.float())
         elif model.objective == "both":
-            loss = F.binary_cross_entropy_with_logits(outputs[0].view(-1), labels.float()) + ContrastiveLoss()(outputs[1].view(-1), 1 - labels.float())
+            loss = F.binary_cross_entropy_with_logits(outputs[0].view(-1), labels.float()) + OnlineContrastiveLoss()(outputs[1], labels.float())
         else:
             raise ValueError("objective should be classification/siamese/both")
 
