@@ -17,10 +17,12 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add all positive pairs to the training set
 - [x] Add pair content-content
 - [x] SentenceBert Softmax loss: https://arxiv.org/pdf/1908.10084.pdf
-- [ ] Training with content texts
+- [x] Training with content texts
 - [ ] Add parent and child topic to topic text
-- [ ] Hard negatives: https://www.kaggle.com/competitions/learning-equality-curriculum-recommendations/discussion/376873
 - [ ] Add f2 score directly to evaluation epoch
+- [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
+- [ ] Hard negatives: https://www.kaggle.com/competitions/learning-equality-curriculum-recommendations/discussion/376873
+- [ ] Try another loss function: https://www.sbert.net/docs/package_reference/losses.html#cosinesimilarityloss
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public

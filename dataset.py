@@ -82,8 +82,7 @@ class LECRDataset(Dataset):
         self.content_df = content_df
         self.correlation_df = correlation_df
         self.use_content_pair = use_content_pair
-        self.labels = self.supervised_df.target.values
-        self.topic_texts, self.content_texts = self.process_csv()
+        self.topic_texts, self.content_texts, self.labels = self.process_csv()
 
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.max_len = max_len
@@ -123,6 +122,7 @@ class LECRDataset(Dataset):
         # get text pairs
         topic_ids = self.supervised_df.topics_ids.values
         content_ids = self.supervised_df.content_ids.values
+        labels = list(self.supervised_df.target.values)
 
         topic_texts = []
         content_texts = []
@@ -168,8 +168,9 @@ class LECRDataset(Dataset):
             for pair in pairs:
                 topic_texts.append(content_dict[pair[0]])
                 content_texts.append(content_dict[pair[1]])
+                labels.append(1)
 
-        return topic_texts, content_texts
+        return topic_texts, content_texts, labels
 
     def __len__(self):
         return len(self.labels)
