@@ -24,7 +24,7 @@ class SiameseDistanceMetric(Enum):
     COSINE_DISTANCE = lambda x, y: 1-F.cosine_similarity(x, y)
 
 
-ass OnlineContrastiveLoss(nn.Module):
+class OnlineContrastiveLoss(nn.Module):
     """
     Online Contrastive loss. Similar to ConstrativeLoss, but it selects hard positive (positives that are far apart)
     and hard negative pairs (negatives that are close) and computes the loss only for these pairs. Often yields
