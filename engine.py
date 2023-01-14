@@ -142,11 +142,14 @@ class CustomTrainer(Trainer):
 
 
 def compute_metrics(eval_preds):
-    predictions = torch.sigmoid(torch.from_numpy(eval_preds.predictions)).numpy()
-    auc = roc_auc_score(eval_preds.label_ids, predictions)
-    accuracy = accuracy_score(eval_preds.label_ids, predictions > 0.5)
-    f1 = f1_score(eval_preds.label_ids, predictions > 0.5)
-    return {"AUC": auc, "acc": accuracy, "f1": f1}
+    try:
+        predictions = torch.sigmoid(torch.from_numpy(eval_preds.predictions)).numpy()
+        auc = roc_auc_score(eval_preds.label_ids, predictions)
+        accuracy = accuracy_score(eval_preds.label_ids, predictions > 0.5)
+        f1 = f1_score(eval_preds.label_ids, predictions > 0.5)
+        return {"AUC": auc, "acc": accuracy, "f1": f1}
+    except:
+        return {"f1": 0}
 
 # =========================================================================================
 # F2 score metric
