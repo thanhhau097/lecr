@@ -133,6 +133,7 @@ class LECRDataset(Dataset):
         for content_id in content_ids:
             content_texts.append(content_dict[content_id])
 
+        set_topic_ids = set(topic_ids)
         use_all_pairs = False  # use all pair, no need to be in the intersection of content_ids of topic ids
         if self.use_content_pair:
             # todo: create content pairs from each topic 
@@ -143,7 +144,10 @@ class LECRDataset(Dataset):
 
             for i, row in tqdm(self.correlation_df.iterrows()):
                 content_list = row["content_ids"].split(" ")
-                
+
+                if row["topic_id"] not in set_topic_ids:
+                    continue
+
                 for content_id in content_list:
                     content_to_topic[content_id].append(row["topic_id"])
                     topic_to_content[row["topic_id"]].append(content_id)
