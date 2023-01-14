@@ -46,22 +46,25 @@ class Model(nn.Module):
 
         self.objective = objective
         if self.objective in ["classification", "both"]:
-            self.fc = nn.Linear(self.model.config.hidden_size * 3, 1)
+            self.fc = nn.Linear(self.model.config.hidden_size, 1)
 
     def feature(self, inputs):
         outputs = self.model(**inputs)
         feature = self.pool(outputs, inputs['attention_mask'])
         return feature
 
-    def forward(self, topic_inputs, content_inputs, labels=None):
-        topic_features = self.feature(topic_inputs)
-        content_features = self.feature(content_inputs)
-
+    def forward(self, topic_inputs, content_inputs, combined_inputs, labels=None):
         if self.objective == "classification":
-            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1))
+            combined_features = self.feature(combined_inputs)
+            return self.fc(combined_features)
         elif self.objective == "siamese":
+            topic_features = self.feature(topic_inputs)
+            content_features = self.feature(content_inputs)
             return topic_features, content_features
         elif self.objective == "both":
-            return self.fc(torch.cat([topic_features, content_features, topic_features - content_features], -1)), (topic_features, content_features)
+            topic_features = self.feature(topic_inputs)
+            content_features = self.feature(content_inputs)
+            combined_features = self.feature(combined_inputs)
+            return self.fc(combined_features), (topic_features, content_features)
         else:
             raise ValueError("objective should be classification/siamese/both")

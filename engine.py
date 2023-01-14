@@ -62,7 +62,9 @@ class CustomTrainer(Trainer):
             inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
         for k, v in inputs["content_inputs"].items():
             inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
-        outputs = model(inputs["topic_inputs"], inputs["content_inputs"])
+        for k, v in inputs["combined_inputs"].items():
+            inputs["combined_inputs"][k] = inputs["combined_inputs"][k].to(device)
+        outputs = model(inputs["topic_inputs"], inputs["content_inputs"], inputs["combined_inputs"])
 
         labels = inputs.get("labels")
         if model.objective == "classification":
@@ -138,6 +140,7 @@ class CustomTrainer(Trainer):
         outputs = nested_detach(outputs)
         del inputs["topic_inputs"]
         del inputs["content_inputs"]
+        del inputs["combined_inputs"]
         return loss, outputs, inputs["labels"]
 
 

@@ -207,24 +207,42 @@ class LECRDataset(Dataset):
         )
         for k, v in content_inputs.items():
             content_inputs[k] = torch.tensor(v, dtype = torch.long)
+
+        combined_inputs = self.tokenizer.encode_plus(
+            topic_text,
+            content_text,
+            return_tensors = None, 
+            add_special_tokens = True, 
+            max_length = self.max_len,
+            padding='max_length',
+            truncation = True
+        )
+        for k, v in combined_inputs.items():
+            combined_inputs[k] = torch.tensor(v, dtype = torch.long)
             
-        return topic_inputs, content_inputs, label
+        return topic_inputs, content_inputs, combined_inputs, label
 
 
 def collate_fn(batch):
     batch = default_collate(batch)
-    
-    topic_inputs, content_inputs, labels = batch
+
+    topic_inputs, content_inputs, combined_inputs, labels = batch
     mask_len = int(topic_inputs["attention_mask"].sum(axis=1).max())
     for k, v in topic_inputs.items():
         topic_inputs[k] = topic_inputs[k][:,:mask_len]
-        
+
     mask_len = int(content_inputs["attention_mask"].sum(axis=1).max())
     for k, v in content_inputs.items():
         content_inputs[k] = content_inputs[k][:,:mask_len]
 
+    mask_len = int(combined_inputs["attention_mask"].sum(axis=1).max())
+    for k, v in combined_inputs.items():
+        combined_inputs[k] = combined_inputs[k][:,:mask_len]
+
+
     return {
-        "topic_inputs": batch[0],
-        "content_inputs": batch[1],
-        "labels": batch[2]
+        "topic_inputs": topic_inputs,
+        "content_inputs": content_inputs,
+        "combined_inputs": combined_inputs,
+        "labels": labels
     }
