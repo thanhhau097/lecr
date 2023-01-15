@@ -20,6 +20,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add pair content-content
 - [x] SentenceBert Softmax loss: https://arxiv.org/pdf/1908.10084.pdf
 - [x] Training with content texts
+- [ ] KNN instead of annoy for retrieve embeddings
 - [ ] Add parent and child topic to topic text
 - [ ] Add f2 score directly to evaluation epoch
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
