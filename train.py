@@ -11,7 +11,7 @@ from transformers import HfArgumentParser, TrainingArguments, set_seed
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 
 from data_args import DataArguments
-from dataset import LECRDataset, collate_fn
+from dataset import DatasetUpdateCallback, LECRDataset, collate_fn
 from engine import CustomTrainer, compute_metrics
 from model import Model
 from model_args import ModelArguments
@@ -119,8 +119,21 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=collate_fn,
-        compute_metrics=compute_metrics,
+        compute_metrics=compute_metrics
     )
+
+    callback = DatasetUpdateCallback(
+        trainer=trainer,
+        train_topic_ids=set(data_df[data_df["fold"] != fold].topics_ids.values),
+        val_topic_ids=set(data_df[data_df["fold"] == fold].topics_ids.values),
+        topic_df=topic_df,
+        content_df=content_df,
+        correlation_df=correlation_df,
+        tokenizer_name=model_args.tokenizer_name,
+        max_len=data_args.max_len,
+        best_score=0
+    )
+    trainer.add_callback(callback)
 
     # Training
     if training_args.do_train:

@@ -1,11 +1,17 @@
 from collections import defaultdict
+import gc
 
+import cupy as cp
+from cuml.metrics import pairwise_distances
+from cuml.neighbors import NearestNeighbors
+import pandas as pd
 import torch
-from torch.utils.data import Dataset, default_collate
+import torch.nn.functional as F
+from torch.utils.data import Dataset, default_collate, DataLoader
 from tqdm import tqdm
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, TrainerCallback
 
-from utils import clean_text
+from utils import clean_text, get_pos_score
 
 
 LANGUAGE_TOKENS = [
@@ -75,6 +81,41 @@ def init_tokenizer(tokenizer_name):
     return tokenizer
 
 
+def get_processed_text_dict(topic_df, content_df):
+    # Fillna titles
+    topic_df['title'].fillna("", inplace = True)
+    content_df['title'].fillna("", inplace = True)
+
+    # Fillna descriptions
+    topic_df['description'].fillna("", inplace = True)
+    content_df['description'].fillna("", inplace = True)
+
+    # clean text
+    print("Cleaning text data for topics")
+    topic_df["title"] = topic_df["title"].apply(clean_text)
+    topic_df["description"] = topic_df["description"].apply(clean_text)
+
+    print("Cleaning text data for content")
+    content_df["title"] = content_df["title"].apply(clean_text)
+    content_df["description"] = content_df["description"].apply(clean_text)
+    # self.content_df["text"] = self.content_df["text"].apply(clean_text)
+
+    # get concatenated texts
+    topic_dict = {}
+    for i, (index, row) in tqdm(enumerate(topic_df.iterrows())):
+        text = "<|topic|>" + f"<|lang_{row['language']}|>" + f"<|category_{row['category']}|>" + f"<|level_{row['level']}|>"
+        text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>"
+        topic_dict[row["id"]] = text
+
+    content_dict = {}
+    for i, (index, row) in tqdm(enumerate(content_df.iterrows())):
+        text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
+        text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>" # + "<s_text>" + row["text"] + "</s_text>"
+        content_dict[row["id"]] = text[:2048]
+
+    return topic_dict, content_dict
+
+
 class LECRDataset(Dataset):
     def __init__(self, supervised_df, topic_df, content_df, correlation_df, tokenizer_name='xlm-roberta-base', max_len=512, use_content_pair=False):
         self.supervised_df = supervised_df
@@ -88,36 +129,7 @@ class LECRDataset(Dataset):
         self.max_len = max_len
 
     def process_csv(self):
-        # Fillna titles
-        self.topic_df['title'].fillna("", inplace = True)
-        self.content_df['title'].fillna("", inplace = True)
-
-        # Fillna descriptions
-        self.topic_df['description'].fillna("", inplace = True)
-        self.content_df['description'].fillna("", inplace = True)
-
-        # clean text
-        print("Cleaning text data for topics")
-        self.topic_df["title"] = self.topic_df["title"].apply(clean_text)
-        self.topic_df["description"] = self.topic_df["description"].apply(clean_text)
-
-        print("Cleaning text data for content")
-        self.content_df["title"] = self.content_df["title"].apply(clean_text)
-        self.content_df["description"] = self.content_df["description"].apply(clean_text)
-        # self.content_df["text"] = self.content_df["text"].apply(clean_text)
-
-        # get concatenated texts
-        topic_dict = {}
-        for i, (index, row) in tqdm(enumerate(self.topic_df.iterrows())):
-            text = "<|topic|>" + f"<|lang_{row['language']}|>" + f"<|category_{row['category']}|>" + f"<|level_{row['level']}|>"
-            text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>"
-            topic_dict[row["id"]] = text
-
-        content_dict = {}
-        for i, (index, row) in tqdm(enumerate(self.content_df.iterrows())):
-            text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
-            text += "<s_title>" + row["title"] + "</s_title>" + "<s_description>" + row["description"] + "</s_description>" # + "<s_text>" + row["text"] + "</s_text>"
-            content_dict[row["id"]] = text[:2048]
+        topic_dict, content_dict = get_processed_text_dict(self.topic_df, self.content_df)
 
         # get text pairs
         topic_ids = self.supervised_df.topics_ids.values
@@ -223,6 +235,222 @@ class LECRDataset(Dataset):
         return topic_inputs, content_inputs, combined_inputs, label
 
 
+class InferenceDataset(Dataset):
+    def __init__(self, texts, tokenizer_name='xlm-roberta-base', max_len=512):
+        self.texts = texts
+
+        self.tokenizer = init_tokenizer(tokenizer_name)
+        self.max_len = max_len
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __getitem__(self, idx):
+        text = self.texts[idx]
+        
+        # topic
+        inputs = self.tokenizer.encode_plus(
+            text, 
+            return_tensors = None, 
+            add_special_tokens = True, 
+            max_length = self.max_len,
+            padding='max_length',
+            truncation = True
+        )
+        for k, v in inputs.items():
+            inputs[k] = torch.tensor(v, dtype = torch.long)
+            
+        return inputs
+
+
+def collate_fn(inputs):
+    inputs = default_collate(inputs)
+    mask_len = int(inputs["attention_mask"].sum(axis=1).max())
+    for k, v in inputs.items():
+        inputs[k] = inputs[k][:,:mask_len]
+        
+    return inputs
+
+
+class DatasetUpdateCallback(TrainerCallback):
+    """
+    Trigger re-computing dataset
+
+    A hack that modifies the train/val dataset, pointed by Trainer's dataloader
+
+    0. Calculate new train/val topic/content embeddings, train KNN, get new top-k
+    1. Calculate top-k max positive score, compare to current val best, if greater, continue to step 2, else do nothing
+    2. Update supervised_df and update dataset:
+        self.topic_texts, self.content_texts, self.labels = self.process_csv()
+    """
+    def __init__(self, trainer, train_topic_ids, val_topic_ids, topic_df, content_df, correlation_df, tokenizer_name, max_len, best_score=0):
+        super(DatasetUpdateCallback, self).__init__()
+        self.trainer = trainer
+        self.topic_df = topic_df
+        self.content_df = content_df
+        self.correlation_df = correlation_df
+        self.best_score = best_score
+
+        topic_dict, content_dict = get_processed_text_dict(self.topic_df, self.content_df)
+
+        train_topic_texts = [
+            topic_dict[topic_id] for topic_id in self.topic_df.id.values if topic_id in train_topic_ids
+        ]
+        self.train_topic_ids = [
+            topic_id for topic_id in self.topic_df.id.values if topic_id in train_topic_ids
+        ]
+
+        val_topic_texts = [
+            topic_dict[topic_id] for topic_id in self.topic_df.id.values if topic_id in val_topic_ids
+        ]
+        self.val_topic_ids = [
+            topic_id for topic_id in self.topic_df.id.values if topic_id in val_topic_ids
+        ]
+
+        content_texts = [
+            content_dict[content_id] for content_id in self.content_df.id.values
+        ]
+
+        def collate_fn(inputs):
+            inputs = default_collate(inputs)
+            mask_len = int(inputs["attention_mask"].sum(axis=1).max())
+            for k, v in inputs.items():
+                inputs[k] = inputs[k][:,:mask_len]
+                
+            return inputs
+
+        train_topic_dataset = InferenceDataset(texts=train_topic_texts, tokenizer_name=tokenizer_name, max_len=max_len)
+        self.train_topic_dataloader = DataLoader(train_topic_dataset, num_workers=16, batch_size=64, shuffle=False, collate_fn=collate_fn)
+
+        val_topic_dataset = InferenceDataset(texts=val_topic_texts, tokenizer_name=tokenizer_name, max_len=max_len)
+        self.val_topic_dataloader = DataLoader(val_topic_dataset, num_workers=16, batch_size=64, shuffle=False, collate_fn=collate_fn)
+
+        content_dataset = InferenceDataset(texts=content_texts, tokenizer_name=tokenizer_name, max_len=max_len)
+        self.content_dataloader = DataLoader(content_dataset, num_workers=16, batch_size=64, shuffle=False, collate_fn=collate_fn)
+
+    def on_epoch_begin(self, args, state, control, **kwargs):
+        topic_embs = []
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        for inputs in tqdm(self.val_topic_dataloader):
+            for k, v in inputs.items():
+                inputs[k] = inputs[k].to(device)
+            out = self.trainer.model.feature(inputs)
+            topic_embs.extend(out.cpu().detach().numpy())
+
+        content_embs = []
+
+        for inputs in tqdm(self.content_dataloader):
+            for k, v in inputs.items():
+                inputs[k] = inputs[k].to(device)
+            out = self.trainer.model.feature(inputs)
+            content_embs.extend(out.cpu().detach().numpy())
+
+        # Transfer predictions to gpu
+        topic_embs_gpu = cp.array(topic_embs)
+        content_embs_gpu = cp.array(content_embs)
+
+        # Release memory
+        torch.cuda.empty_cache()
+
+        # KNN model
+        print(' ')
+        print('Training KNN model...')
+        top_k = 20
+
+        neighbors_model = NearestNeighbors(n_neighbors=top_k, metric = 'cosine')
+        neighbors_model.fit(content_embs_gpu)
+
+        indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance = False)
+        predictions = []
+        for k in tqdm(range(len(indices))):
+            pred = indices[k]
+            p = ' '.join([self.content_df.loc[ind, 'id'] for ind in pred.get()])
+            predictions.append(p)
+        
+        knn_preds = pd.DataFrame({
+            'topic_id': self.val_topic_ids,
+            'content_ids': predictions
+        }).sort_values("topic_id")
+        
+        gt = self.correlation_df[self.correlation_df.topic_id.isin(self.val_topic_ids)].sort_values("topic_id")    
+        score = get_pos_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], top_k)
+        print("max positive score =", score, "best_score =", self.best_score)
+
+        if score > self.best_score:
+            self.best_score = score
+            # generate new pairs in dataset
+            new_val_supervised_df = build_new_supervised_df(knn_preds, self.correlation_df)
+
+            # get top-k for training set
+            train_topic_embs = []
+
+            for inputs in tqdm(self.train_topic_dataloader):
+                for k, v in inputs.items():
+                    inputs[k] = inputs[k].to(device)
+                out = self.trainer.model.feature(inputs)
+                train_topic_embs.extend(out.cpu().detach().numpy())
+
+            train_topic_embs_gpu = cp.array(train_topic_embs)
+
+            train_indices = neighbors_model.kneighbors(train_topic_embs_gpu, return_distance = False)
+            train_predictions = []
+            for k in tqdm(range(len(train_indices))):
+                pred = train_indices[k]
+                p = ' '.join([self.content_df.loc[ind, 'id'] for ind in pred.get()])
+                train_predictions.append(p)
+            
+            train_knn_preds = pd.DataFrame({
+                'topic_id': self.train_topic_ids,
+                'content_ids': train_predictions
+            }).sort_values("topic_id")
+
+            new_train_supervised_df = build_new_supervised_df(train_knn_preds, self.correlation_df)
+            # update train_dataset and val_dataset
+            self.trainer.train_dataset.supervised_df = new_train_supervised_df
+            self.trainer.train_dataset.process_csv()
+
+            self.trainer.eval_dataset.supervised_df = new_val_supervised_df
+            self.trainer.eval_dataset.process_csv()
+
+
+def build_new_supervised_df(knn_df, correlations):
+    # Create lists for training
+    topics_ids = []
+    content_ids = []
+    targets = []
+
+    # Iterate over each topic in df
+    mapping = set()
+
+    for i, row in tqdm(knn_df.iterrows()):
+        content_ids = row["content_ids"].split(" ")
+        if content_ids:
+            for content_id in content_ids:
+                mapping.add((row["topic_id"], content_id, 1))
+
+    # get all class 1 in correlations
+    topic_ids = set(knn_df.topic_id.values)
+    filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)]
+    for i, row in tqdm(filtered_correlations.iterrows()):
+        content_ids = row["content_ids"].split(" ")
+        if content_ids:
+            for content_id in content_ids:
+                mapping.add((row["topic_id"], content_id, 1))
+
+    # Build training dataset
+    mapping = list(mapping)
+    new_df = pd.DataFrame(
+        {
+            'topics_ids': [item[0] for item in mapping], 
+            'content_ids': [item[1] for item in mapping], 
+            'target': [item[2] for item in mapping]}
+        )
+    # Release memory
+    del topics_ids, content_ids
+    gc.collect()
+    return new_df
+
+    
 def collate_fn(batch):
     batch = default_collate(batch)
 
