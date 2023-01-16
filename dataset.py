@@ -412,6 +412,13 @@ class DatasetUpdateCallback(TrainerCallback):
             self.trainer.eval_dataset.supervised_df = new_val_supervised_df
             self.trainer.eval_dataset.process_csv()
 
+            del train_topic_embs, train_topic_embs_gpu, train_knn_preds, train_indices, train_predictions
+            gc.collect()
+
+        del topic_embs, content_embs, topic_embs_gpu, content_embs_gpu, knn_preds, indices, neighbors_model, predictions
+        gc.collect()
+        torch.cuda.empty_cache()
+
 
 def build_new_supervised_df(knn_df, correlations):
     # Create lists for training
@@ -422,12 +429,6 @@ def build_new_supervised_df(knn_df, correlations):
     # Iterate over each topic in df
     mapping = set()
 
-    for i, row in tqdm(knn_df.iterrows()):
-        content_ids = row["content_ids"].split(" ")
-        if content_ids:
-            for content_id in content_ids:
-                mapping.add((row["topic_id"], content_id, 1))
-
     # get all class 1 in correlations
     topic_ids = set(knn_df.topic_id.values)
     filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)]
@@ -436,6 +437,13 @@ def build_new_supervised_df(knn_df, correlations):
         if content_ids:
             for content_id in content_ids:
                 mapping.add((row["topic_id"], content_id, 1))
+
+    for i, row in tqdm(knn_df.iterrows()):
+        content_ids = row["content_ids"].split(" ")
+        if content_ids:
+            for content_id in content_ids:
+                if (row["topic_id"], content_id, 1) not in mapping:  # because mapping already contains all positive cases
+                    mapping.add((row["topic_id"], content_id, 0))
 
     # Build training dataset
     mapping = list(mapping)
