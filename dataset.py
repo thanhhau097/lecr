@@ -407,10 +407,10 @@ class DatasetUpdateCallback(TrainerCallback):
             new_train_supervised_df = build_new_supervised_df(train_knn_preds, self.correlation_df)
             # update train_dataset and val_dataset
             self.trainer.train_dataset.supervised_df = new_train_supervised_df
-            self.trainer.train_dataset.process_csv()
+            self.trainer.train_dataset.topic_texts, self.trainer.train_dataset.content_texts, self.trainer.train_dataset.labels = self.trainer.train_dataset.process_csv()
 
             self.trainer.eval_dataset.supervised_df = new_val_supervised_df
-            self.trainer.eval_dataset.process_csv()
+            self.trainer.eval_dataset.topic_texts, self.trainer.eval_dataset.content_texts, self.trainer.eval_dataset.labels = self.trainer.eval_dataset.process_csv()
 
             del train_topic_embs, train_topic_embs_gpu, train_knn_preds, train_indices, train_predictions
             gc.collect()
