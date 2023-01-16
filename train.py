@@ -94,7 +94,12 @@ def main():
 
     # Initialize trainer
     print("Initializing model...")
-    model = Model(tokenizer_name=model_args.tokenizer_name, model_name=model_args.model_name, objective=model_args.objective)
+    model = Model(
+        tokenizer_name=model_args.tokenizer_name,
+        model_name=model_args.model_name,
+        objective=model_args.objective,
+        is_sentence_transformers=model_args.is_sentence_transformers,
+    )
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
@@ -104,10 +109,9 @@ def main():
         model.model.load_state_dict(checkpoint)
 
         if "fc.weight" in checkpoint:
-            model.fc.load_state_dict({
-                "weight": checkpoint["fc.weight"],
-                "bias": checkpoint["fc.bias"]
-            })
+            model.fc.load_state_dict(
+                {"weight": checkpoint["fc.weight"], "bias": checkpoint["fc.bias"]}
+            )
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
@@ -119,7 +123,7 @@ def main():
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         data_collator=collate_fn,
-        compute_metrics=compute_metrics
+        compute_metrics=compute_metrics,
     )
 
     callback = DatasetUpdateCallback(
@@ -131,7 +135,7 @@ def main():
         correlation_df=correlation_df,
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
-        best_score=0
+        best_score=0,
     )
     trainer.add_callback(callback)
 

@@ -19,9 +19,10 @@ class SiameseDistanceMetric(Enum):
     """
     The metric for the contrastive loss
     """
+
     EUCLIDEAN = lambda x, y: F.pairwise_distance(x, y, p=2)
     MANHATTAN = lambda x, y: F.pairwise_distance(x, y, p=1)
-    COSINE_DISTANCE = lambda x, y: 1-F.cosine_similarity(x, y)
+    COSINE_DISTANCE = lambda x, y: 1 - F.cosine_similarity(x, y)
 
 
 class OnlineContrastiveLoss(nn.Module):
@@ -35,7 +36,9 @@ class OnlineContrastiveLoss(nn.Module):
     :param size_average: Average by the size of the mini-batch.
     """
 
-    def __init__(self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5):
+    def __init__(
+        self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5
+    ):
         super(OnlineContrastiveLoss, self).__init__()
         self.margin = margin
         self.distance_metric = distance_metric
@@ -64,7 +67,9 @@ class CustomTrainer(Trainer):
             inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
         for k, v in inputs["combined_inputs"].items():
             inputs["combined_inputs"][k] = inputs["combined_inputs"][k].to(device)
-        outputs = model(inputs["topic_inputs"], inputs["content_inputs"], inputs["combined_inputs"])
+        outputs = model(
+            inputs["topic_inputs"], inputs["content_inputs"], inputs["combined_inputs"]
+        )
 
         labels = inputs.get("labels")
         if model.objective == "classification":
@@ -74,7 +79,9 @@ class CustomTrainer(Trainer):
             loss_fct = OnlineContrastiveLoss()
             loss = loss_fct(outputs, labels.float())
         elif model.objective == "both":
-            loss = F.binary_cross_entropy_with_logits(outputs[0].view(-1), labels.float()) + OnlineContrastiveLoss()(outputs[1], labels.float())
+            loss = F.binary_cross_entropy_with_logits(
+                outputs[0].view(-1), labels.float()
+            ) + OnlineContrastiveLoss()(outputs[1], labels.float())
         else:
             raise ValueError("objective should be classification/siamese/both")
 
@@ -153,6 +160,7 @@ def compute_metrics(eval_preds):
         return {"AUC": auc, "acc": accuracy, "f1": f1}
     except:
         return {"f1": 0}
+
 
 # =========================================================================================
 # F2 score metric

@@ -14,33 +14,47 @@ class MeanPooling(nn.Module):
 
     def forward(self, outputs, attention_mask):
         if self.is_sentence_transformers:
-            token_embeddings = outputs[0] #First element of outputs contains all token embeddings
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
-            sentence_embeddings = torch.sum(token_embeddings * input_mask_expanded, 1) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
+            token_embeddings = outputs[
+                0
+            ]  # First element of outputs contains all token embeddings
+            input_mask_expanded = (
+                attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
+            )
+            sentence_embeddings = torch.sum(
+                token_embeddings * input_mask_expanded, 1
+            ) / torch.clamp(input_mask_expanded.sum(1), min=1e-9)
             sentence_embeddings = F.normalize(sentence_embeddings, p=2, dim=1)
 
             return sentence_embeddings
         else:
             last_hidden_state = outputs.last_hidden_state
-            input_mask_expanded = attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+            input_mask_expanded = (
+                attention_mask.unsqueeze(-1).expand(last_hidden_state.size()).float()
+            )
             sum_embeddings = torch.sum(last_hidden_state * input_mask_expanded, 1)
             sum_mask = input_mask_expanded.sum(1)
             sum_mask = torch.clamp(sum_mask, min=1e-9)
             mean_embeddings = sum_embeddings / sum_mask
             return mean_embeddings
-    
+
 
 class Model(nn.Module):
-    def __init__(self, tokenizer_name="xlm-roberta-base", model_name="xlm-roberta-base", objective="classification", is_sentence_transformers=False):
+    def __init__(
+        self,
+        tokenizer_name="xlm-roberta-base",
+        model_name="xlm-roberta-base",
+        objective="classification",
+        is_sentence_transformers=False,
+    ):
         super(Model, self).__init__()
-        self.config = AutoConfig.from_pretrained(model_name, output_hidden_states = True)
+        self.config = AutoConfig.from_pretrained(model_name, output_hidden_states=True)
         self.config.hidden_dropout = 0.0
         self.config.hidden_dropout_prob = 0.0
         self.config.attention_dropout = 0.0
         self.config.attention_probs_dropout_prob = 0.0
 
         self.tokenizer = init_tokenizer(tokenizer_name)
-        self.model = AutoModel.from_pretrained(model_name, config = self.config)
+        self.model = AutoModel.from_pretrained(model_name, config=self.config)
         self.model.resize_token_embeddings(len(self.tokenizer))
         self.pool = MeanPooling(is_sentence_transformers=is_sentence_transformers)
 
@@ -50,7 +64,7 @@ class Model(nn.Module):
 
     def feature(self, inputs):
         outputs = self.model(**inputs)
-        feature = self.pool(outputs, inputs['attention_mask'])
+        feature = self.pool(outputs, inputs["attention_mask"])
         return feature
 
     def forward(self, topic_inputs, content_inputs, combined_inputs, labels=None):
