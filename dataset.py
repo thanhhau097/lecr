@@ -490,7 +490,7 @@ class DatasetUpdateCallback(TrainerCallback):
                 self.correlation_df.topic_id.isin(self.val_topic_ids)
             ].sort_values("topic_id")
             score = get_pos_score(
-                gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], k
+                gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
             )
             print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
 
