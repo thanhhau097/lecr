@@ -11,7 +11,7 @@ from torch.utils.data import Dataset, default_collate, DataLoader
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainerCallback
 
-from utils import clean_text, get_pos_score
+from utils import clean_text, f2_score, get_pos_score
 
 
 LANGUAGE_TOKENS = [
@@ -470,10 +470,33 @@ class DatasetUpdateCallback(TrainerCallback):
         torch.cuda.empty_cache()
 
         # KNN model
-        print(" ")
+        print("Evaluating current score...")
+        for selected_k in [5, 10, 20, 50]:
+            neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
+            neighbors_model.fit(content_embs_gpu)
+
+            indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
+            predictions = []
+            for k in tqdm(range(len(indices))):
+                pred = indices[k]
+                p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                predictions.append(p)
+
+            knn_preds = pd.DataFrame(
+                {"topic_id": self.val_topic_ids, "content_ids": predictions}
+            ).sort_values("topic_id")
+
+            gt = self.correlation_df[
+                self.correlation_df.topic_id.isin(self.val_topic_ids)
+            ].sort_values("topic_id")
+            score = get_pos_score(
+                gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], k
+            )
+            print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
+
         print("Training KNN model...")
         top_k = 50
-
+        print("Generating KNN predictions with top_k =", top_k)
         neighbors_model = NearestNeighbors(n_neighbors=top_k, metric="cosine")
         neighbors_model.fit(content_embs_gpu)
 
@@ -488,14 +511,6 @@ class DatasetUpdateCallback(TrainerCallback):
         knn_preds = pd.DataFrame(
             {"topic_id": self.val_topic_ids, "content_ids": predictions}
         ).sort_values("topic_id")
-
-        gt = self.correlation_df[
-            self.correlation_df.topic_id.isin(self.val_topic_ids)
-        ].sort_values("topic_id")
-        score = get_pos_score(
-            gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], top_k
-        )
-        print("max positive score =", score, "best_score =", self.best_score)
 
         if score > self.best_score:
             self.best_score = score
