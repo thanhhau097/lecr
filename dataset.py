@@ -514,6 +514,9 @@ class DatasetUpdateCallback(TrainerCallback):
 
         if score > self.best_score:
             self.best_score = score
+        
+        generate_new_dataset_every_epoch = True
+        if generate_new_dataset_every_epoch or (score == self.best_score):
             # generate new pairs in dataset
             print("Building new validation supervised df")
             new_val_supervised_df = build_new_supervised_df(
