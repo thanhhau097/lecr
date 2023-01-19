@@ -515,6 +515,8 @@ class DatasetUpdateCallback(TrainerCallback):
 
         if score > self.best_score:
             self.best_score = score
+            print("saving best model to data/ folder")
+            torch.save(self.trainer.model.state_dict(), f"data/siamese_model_{score}.pth")
         
         generate_new_dataset_every_epoch = True
         if generate_new_dataset_every_epoch or (score == self.best_score):
@@ -523,6 +525,9 @@ class DatasetUpdateCallback(TrainerCallback):
             new_val_supervised_df = build_new_supervised_df(
                 knn_preds, self.correlation_df
             )
+            if score == self.best_score: # only save for the best checkpoint
+                print("saving new_val_supervised_df to data/ folder")
+                new_val_supervised_df.to_csv("data/new_val_supervised_df.csv")
 
             # get top-k for training set
             print("Generating embedding for train topics")
@@ -553,6 +558,11 @@ class DatasetUpdateCallback(TrainerCallback):
             new_train_supervised_df = build_new_supervised_df(
                 train_knn_preds, self.correlation_df
             )
+            
+            if score == self.best_score: # only save for the best checkpoint
+                print("saving new_train_supervised_df to data/ folder")
+                new_train_supervised_df.to_csv("data/new_train_supervised_df.csv")
+
             # update train_dataset and val_dataset
             print("preprocess csv for train/validation topics, contents, labels")
             self.trainer.train_dataset.supervised_df = new_train_supervised_df
