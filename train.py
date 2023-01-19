@@ -126,19 +126,20 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    callback = DatasetUpdateCallback(
-        trainer=trainer,
-        train_topic_ids=set(data_df[data_df["fold"] != fold].topics_ids.values),
-        val_topic_ids=set(data_df[data_df["fold"] == fold].topics_ids.values),
-        topic_df=topic_df,
-        content_df=content_df,
-        correlation_df=correlation_df,
-        tokenizer_name=model_args.tokenizer_name,
-        max_len=data_args.max_len,
-        best_score=0,
-        top_k=data_args.top_k_neighbors,
-    )
-    trainer.add_callback(callback)
+    if model_args.objective == "siamese":
+        callback = DatasetUpdateCallback(
+            trainer=trainer,
+            train_topic_ids=set(data_df[data_df["fold"] != fold].topics_ids.values),
+            val_topic_ids=set(data_df[data_df["fold"] == fold].topics_ids.values),
+            topic_df=topic_df,
+            content_df=content_df,
+            correlation_df=correlation_df,
+            tokenizer_name=model_args.tokenizer_name,
+            max_len=data_args.max_len,
+            best_score=0,
+            top_k=data_args.top_k_neighbors,
+        )
+        trainer.add_callback(callback)
 
     # Training
     if training_args.do_train:
