@@ -365,6 +365,7 @@ class DatasetUpdateCallback(TrainerCallback):
         tokenizer_name,
         max_len,
         best_score=0,
+        top_k=50
     ):
         super(DatasetUpdateCallback, self).__init__()
         self.trainer = trainer
@@ -372,6 +373,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.content_df = content_df
         self.correlation_df = correlation_df
         self.best_score = best_score
+        self.top_k = top_k
 
         topic_dict, content_dict = get_processed_text_dict(
             self.topic_df, self.content_df
@@ -495,9 +497,8 @@ class DatasetUpdateCallback(TrainerCallback):
             print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
 
         print("Training KNN model...")
-        top_k = 50
-        print("Generating KNN predictions with top_k =", top_k)
-        neighbors_model = NearestNeighbors(n_neighbors=top_k, metric="cosine")
+        print("Generating KNN predictions with top_k =", self.top_k)
+        neighbors_model = NearestNeighbors(n_neighbors=self.top_k, metric="cosine")
         neighbors_model.fit(content_embs_gpu)
 
         print("Generating embedding for validation topics")

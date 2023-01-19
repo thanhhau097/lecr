@@ -136,6 +136,7 @@ def main():
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
         best_score=0,
+        top_k=data_args.top_k_neighbors,
     )
     trainer.add_callback(callback)
 

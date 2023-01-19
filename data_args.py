@@ -24,3 +24,4 @@ class DataArguments:
     use_content_pair: bool = field(
         default=False, metadata={"help": "Use content pair in data"}
     )
+    top_k_neighbors: int = field(default=50, metadata={"help": "select top_k nearest neighbors for training and valiation set"})
