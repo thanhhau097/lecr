@@ -117,7 +117,7 @@ def get_processed_text_dict(topic_df, content_df):
     print("Cleaning text data for content")
     content_df["title"] = content_df["title"].apply(clean_text)
     content_df["description"] = content_df["description"].apply(clean_text)
-    # self.content_df["text"] = self.content_df["text"].apply(clean_text)
+    # content_df["text"] = content_df["text"].apply(clean_text)
 
     # get concatenated texts
     topic_dict = {}
@@ -148,7 +148,8 @@ def get_processed_text_dict(topic_df, content_df):
             + "<s_description>"
             + row["description"]
             + "</s_description>"
-        )  # + "<s_text>" + row["text"] + "</s_text>"
+            + "<s_text>" + str(row["text"]) + "</s_text>"
+        )
         content_dict[row["id"]] = text[:2048]
 
     return topic_dict, content_dict
@@ -473,7 +474,7 @@ class DatasetUpdateCallback(TrainerCallback):
 
         # KNN model
         print("Evaluating current score...")
-        for selected_k in [5, 10, 20, 50]:
+        for selected_k in [5, 10, 20, 50, 100, 200]:
             neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
             neighbors_model.fit(content_embs_gpu)
 
@@ -512,6 +513,11 @@ class DatasetUpdateCallback(TrainerCallback):
         knn_preds = pd.DataFrame(
             {"topic_id": self.val_topic_ids, "content_ids": predictions}
         ).sort_values("topic_id")
+
+        score = get_pos_score(
+            gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], self.top_k
+        )
+        print("Current Score:", score, "Best Score:", self.best_score)
 
         if score > self.best_score:
             self.best_score = score
