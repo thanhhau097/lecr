@@ -35,13 +35,14 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] SentenceBert Softmax loss: https://arxiv.org/pdf/1908.10084.pdf
 - [x] Training with content texts
 - [x] KNN instead of annoy for retrieve embeddings
-- [ ] Add parent and child topic to topic text
+- [x] Add parent and child topic to topic text
+- [x] Add text information to content
 - [ ] Add f2 score directly to evaluation epoch
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
 - [x] Hard negatives: https://www.kaggle.com/competitions/learning-equality-curriculum-recommendations/discussion/376873
 - [x] Try another loss function: https://www.sbert.net/docs/package_reference/losses.html#cosinesimilarityloss
 - [x] 2 stages pipeline: https://www.sbert.net/examples/applications/retrieve_rerank/README.html. https://www.sbert.net/examples/applications/cross-encoder/README.html
-- [ ] Supervised dataset generation loop: 
+- [x] Supervised dataset generation loop: 
     1. Generate from pretrained model
     2. Train new embedding - retriever (then calculate top-k max postitive score)
     3. Get top-k to generate new pairs, repeat step 2 (until top-k max postitive score doesn't change much, go to step 4)
