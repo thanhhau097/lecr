@@ -28,12 +28,12 @@ class DataArguments:
     use_translated: bool = field(
         default=False, metadata={"help": "Use translated data while training"}
     )
-    trainslated_topic_path: str = field(
+    translated_topic_path: str = field(
         default="./data/translated_topics.csv", metadata={"help": "translated topic csv path"}
     )
-    trainslated_content_path: str = field(
+    translated_content_path: str = field(
         default="./data/translated_content.csv", metadata={"help": "translated content csv path"}
     )
-    trainslated_correlation_path: str = field(
+    translated_correlation_path: str = field(
         default="./data/translated_correlations.csv", metadata={"help": "translated correlation csv path"}
     )
