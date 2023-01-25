@@ -11,10 +11,12 @@ from transformers import HfArgumentParser, TrainingArguments, set_seed
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
 
 from data_args import DataArguments
-from dataset import DatasetUpdateCallback, LECRDataset, collate_fn
+from dataset import DatasetUpdateCallback, LECRDataset, collate_fn, init_tokenizer
 from engine import CustomTrainer, compute_metrics
 from model import Model
 from model_args import ModelArguments
+from utils import get_processed_text_dict
+
 
 torch.set_float32_matmul_precision("high")
 logger = logging.getLogger(__name__)
@@ -72,10 +74,39 @@ def main():
     print("Reading correlation data CSV", data_args.correlation_path)
     correlation_df = pd.read_csv(data_args.correlation_path)
 
+    if data_args.use_translated:
+        print("Reading translated topic data CSV", data_args.translated_topic_path)
+        translated_topic_df = pd.read_csv(data_args.translated_topic_path)
+        print("Reading translated content data CSV", data_args.translated_content_path)
+        translated_content_df = pd.read_csv(data_args.translated_content_path)
+        print("Reading translated correlation data CSV", data_args.translated_correlation_path)
+        translated_correlation_df = pd.read_csv(data_args.translated_correlation_path)
+
+        # add to topic_df, content_df, correlation_df
+        # about correlation_df, for training set, we add all correlations
+        # but for validation set, we only keep the original ones
+        translated_topic_df = translated_topic_df.drop(columns=["origin_id", "origin_parent"])
+        topic_df = pd.concat([topic_df, translated_topic_df])
+
+        translated_content_df = translated_content_df.drop(columns=["origin_id"])
+        content_df = pd.concat([content_df, translated_content_df])
+        
+        # drop all rows that contains val topic_ids in translated_correlation_df
+        train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
+        translated_correlation_df = translated_correlation_df[translated_correlation_df.topic_id.isin(train_topic_ids)]
+        correlation_df = pd.concat([correlation_df, translated_correlation_df])
+
+    tokenizer = init_tokenizer(model_args.tokenizer_name)
+    topic_dict, content_dict = get_processed_text_dict(
+        topic_df, content_df, tokenizer.sep_token
+    )
+
     train_dataset = LECRDataset(
         supervised_df=data_df[data_df["fold"] != fold],
         topic_df=topic_df,
         content_df=content_df,
+        topic_dict=topic_dict,
+        content_dict=content_dict,
         correlation_df=correlation_df,
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
@@ -86,6 +117,8 @@ def main():
         supervised_df=data_df[data_df["fold"] == fold],
         topic_df=topic_df,
         content_df=content_df,
+        topic_dict=topic_dict,
+        content_dict=content_dict,
         correlation_df=correlation_df,
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
@@ -133,6 +166,8 @@ def main():
             val_topic_ids=set(data_df[data_df["fold"] == fold].topics_ids.values),
             topic_df=topic_df,
             content_df=content_df,
+            topic_dict=topic_dict,
+            content_dict=content_dict,
             correlation_df=correlation_df,
             tokenizer_name=model_args.tokenizer_name,
             max_len=data_args.max_len,

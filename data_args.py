@@ -25,3 +25,15 @@ class DataArguments:
         default=False, metadata={"help": "Use content pair in data"}
     )
     top_k_neighbors: int = field(default=50, metadata={"help": "select top_k nearest neighbors for training and valiation set"})
+    use_translated: bool = field(
+        default=False, metadata={"help": "Use translated data while training"}
+    )
+    trainslated_topic_path: str = field(
+        default="./data/translated_topics.csv", metadata={"help": "translated topic csv path"}
+    )
+    trainslated_content_path: str = field(
+        default="./data/translated_content.csv", metadata={"help": "translated content csv path"}
+    )
+    trainslated_correlation_path: str = field(
+        default="./data/translated_correlations.csv", metadata={"help": "translated correlation csv path"}
+    )

@@ -1,8 +1,10 @@
 # clean text
 import re
 import string
+from collections import defaultdict
 
 import numpy as np
+from tqdm import tqdm
 
 
 def decontracted(phrase):
@@ -79,3 +81,83 @@ def f2_score(y_true, y_pred):
     recall = tp / (tp + fn)
     f2 = tp / (tp + 0.2 * fp + 0.8 * fn)
     return round(f2.mean(), 4)
+
+
+
+def get_processed_text_dict(topic_df, content_df, sep_token):
+    # Fillna titles
+    topic_df["title"].fillna("", inplace=True)
+    content_df["title"].fillna("", inplace=True)
+
+    # Fillna descriptions
+    topic_df["description"].fillna("", inplace=True)
+    content_df["description"].fillna("", inplace=True)
+
+    # clean text
+    print("Cleaning text data for topics")
+    topic_df["title"] = topic_df["title"].apply(clean_text)
+    topic_df["description"] = topic_df["description"].apply(clean_text)
+
+    print("Cleaning text data for content")
+    content_df["title"] = content_df["title"].apply(clean_text)
+    content_df["description"] = content_df["description"].apply(clean_text)
+    # content_df["text"] = content_df["text"].apply(clean_text)
+
+    # parent and children information
+    parents = defaultdict(lambda: [])
+    children = defaultdict(lambda: [])
+    topic_title_dict = {}
+
+    all_topic_ids = set(topic_df.id.values)
+    for i, row in tqdm(topic_df.iterrows()):
+        if row["parent"] in all_topic_ids:
+            parents[row["id"]].append(row["parent"])
+            children[row["parent"]].append(row["id"])
+
+        topic_title_dict[row["id"]] = row["title"]
+    
+    # get concatenated texts
+    topic_dict = {}
+    for i, (index, row) in tqdm(enumerate(topic_df.iterrows())):
+        text = (
+            "<|topic|>"
+            + f"<|lang_{row['language']}|>"
+            + f"<|category_{row['category']}|>"
+            + f"<|level_{row['level']}|>"
+        )
+        text += (
+            "<s_title>"
+            + row["title"]
+            + "</s_title>"
+            + "<s_description>"
+            + row["description"]
+            + "</s_description>"
+        )
+        if parents.get(row["id"]):
+            text += "<s_parent>" + topic_title_dict[parents.get(row["id"])[0]] + "</s_parent>"
+        
+        if children.get(row["id"]):
+            children_text = "<s_children>"
+            for child_topic_id in children.get(row["id"]):
+                children_text += topic_title_dict[child_topic_id] + sep_token
+            children_text = children_text[:-(len(sep_token))] + "</s_children>"
+        else:
+            children_text = ""
+        topic_dict[row["id"]] = text + children_text
+
+    content_dict = {}
+    for i, (index, row) in tqdm(enumerate(content_df.iterrows())):
+        text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
+        text += (
+            "<s_title>"
+            + row["title"]
+            + "</s_title>"
+            + "<s_description>"
+            + row["description"]
+            + "</s_description>"
+            + "<s_text>" + str(row["text"]) + "</s_text>"
+        )
+        content_dict[row["id"]] = text
+
+    return topic_dict, content_dict
+

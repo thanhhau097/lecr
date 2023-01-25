@@ -108,90 +108,14 @@ def init_tokenizer(tokenizer_name):
     return tokenizer
 
 
-def get_processed_text_dict(topic_df, content_df, sep_token):
-    # Fillna titles
-    topic_df["title"].fillna("", inplace=True)
-    content_df["title"].fillna("", inplace=True)
-
-    # Fillna descriptions
-    topic_df["description"].fillna("", inplace=True)
-    content_df["description"].fillna("", inplace=True)
-
-    # clean text
-    print("Cleaning text data for topics")
-    topic_df["title"] = topic_df["title"].apply(clean_text)
-    topic_df["description"] = topic_df["description"].apply(clean_text)
-
-    print("Cleaning text data for content")
-    content_df["title"] = content_df["title"].apply(clean_text)
-    content_df["description"] = content_df["description"].apply(clean_text)
-    # content_df["text"] = content_df["text"].apply(clean_text)
-
-    # parent and children information
-    parents = defaultdict(lambda: [])
-    children = defaultdict(lambda: [])
-    topic_title_dict = {}
-
-    all_topic_ids = set(topic_df.id.values)
-    for i, row in tqdm(topic_df.iterrows()):
-        if row["parent"] in all_topic_ids:
-            parents[row["id"]].append(row["parent"])
-            children[row["parent"]].append(row["id"])
-
-        topic_title_dict[row["id"]] = row["title"]
-    
-    # get concatenated texts
-    topic_dict = {}
-    for i, (index, row) in tqdm(enumerate(topic_df.iterrows())):
-        text = (
-            "<|topic|>"
-            + f"<|lang_{row['language']}|>"
-            + f"<|category_{row['category']}|>"
-            + f"<|level_{row['level']}|>"
-        )
-        text += (
-            "<s_title>"
-            + row["title"]
-            + "</s_title>"
-            + "<s_description>"
-            + row["description"]
-            + "</s_description>"
-        )
-        if parents.get(row["id"]):
-            text += "<s_parent>" + topic_title_dict[parents.get(row["id"])[0]] + "</s_parent>"
-        
-        if children.get(row["id"]):
-            children_text = "<s_children>"
-            for child_topic_id in children.get(row["id"]):
-                children_text += topic_title_dict[child_topic_id] + sep_token
-            children_text = children_text[:-(len(sep_token))] + "</s_children>"
-        else:
-            children_text = ""
-        topic_dict[row["id"]] = text + children_text
-
-    content_dict = {}
-    for i, (index, row) in tqdm(enumerate(content_df.iterrows())):
-        text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
-        text += (
-            "<s_title>"
-            + row["title"]
-            + "</s_title>"
-            + "<s_description>"
-            + row["description"]
-            + "</s_description>"
-            + "<s_text>" + str(row["text"]) + "</s_text>"
-        )
-        content_dict[row["id"]] = text
-
-    return topic_dict, content_dict
-
-
 class LECRDataset(Dataset):
     def __init__(
         self,
         supervised_df,
         topic_df,
         content_df,
+        topic_dict,
+        content_dict,
         correlation_df,
         tokenizer_name="xlm-roberta-base",
         max_len=512,
@@ -203,15 +127,12 @@ class LECRDataset(Dataset):
         self.supervised_df = supervised_df
         self.topic_df = topic_df
         self.content_df = content_df
+        self.topic_dict, self.content_dict = topic_dict, content_dict
         self.correlation_df = correlation_df
         self.use_content_pair = use_content_pair
         self.topic_texts, self.content_texts, self.labels = self.process_csv()
 
     def process_csv(self):
-        topic_dict, content_dict = get_processed_text_dict(
-            self.topic_df, self.content_df, self.tokenizer.sep_token
-        )
-
         # get text pairs
         topic_ids = self.supervised_df.topics_ids.values
         content_ids = self.supervised_df.content_ids.values
@@ -221,10 +142,10 @@ class LECRDataset(Dataset):
         content_texts = []
 
         for topic_id in topic_ids:
-            topic_texts.append(topic_dict[topic_id])
+            topic_texts.append(self.topic_dict[topic_id])
 
         for content_id in content_ids:
-            content_texts.append(content_dict[content_id])
+            content_texts.append(self.content_dict[content_id])
 
         set_topic_ids = set(topic_ids)
         use_all_pairs = False  # use all pair, no need to be in the intersection of content_ids of topic ids
@@ -393,6 +314,8 @@ class DatasetUpdateCallback(TrainerCallback):
         val_topic_ids,
         topic_df,
         content_df,
+        topic_dict,
+        content_dict,
         correlation_df,
         tokenizer_name,
         max_len,
@@ -408,9 +331,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.top_k = top_k
 
         self.tokenizer = init_tokenizer(tokenizer_name)
-        topic_dict, content_dict = get_processed_text_dict(
-            self.topic_df, self.content_df, self.tokenizer.sep_token
-        )
+        self.topic_dict, self.content_dict = topic_dict, content_dict
 
         train_topic_texts = [
             topic_dict[topic_id]

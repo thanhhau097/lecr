@@ -48,6 +48,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
     3. Get top-k to generate new pairs, repeat step 2 (until top-k max postitive score doesn't change much, go to step 4)
     4. Train classifier to get last classifier - reranking.
     Note: or we can change top-k dataset pairs every epoch: https://stackoverflow.com/questions/72750887/how-to-update-training-dataset-at-epoch-begin-in-huggingface-trainer-using-callb
+- [ ] Add Siamese embeddings to classification models
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public
