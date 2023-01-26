@@ -124,7 +124,7 @@ class LECRDataset(Dataset):
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.max_len = max_len
 
-        self.supervised_df = supervised_df
+        self.supervised_df = supervised_df.dropna()
         self.topic_df = topic_df
         self.content_df = content_df
         self.topic_dict, self.content_dict = topic_dict, content_dict
@@ -524,14 +524,14 @@ class DatasetUpdateCallback(TrainerCallback):
 
             # update train_dataset and val_dataset
             print("preprocess csv for train/validation topics, contents, labels")
-            self.trainer.train_dataset.supervised_df = new_train_supervised_df
+            self.trainer.train_dataset.supervised_df = new_train_supervised_df.dropna()
             (
                 self.trainer.train_dataset.topic_texts,
                 self.trainer.train_dataset.content_texts,
                 self.trainer.train_dataset.labels,
             ) = self.trainer.train_dataset.process_csv()
 
-            self.trainer.eval_dataset.supervised_df = new_val_supervised_df
+            self.trainer.eval_dataset.supervised_df = new_val_supervised_df.dropna()
             (
                 self.trainer.eval_dataset.topic_texts,
                 self.trainer.eval_dataset.content_texts,
@@ -572,7 +572,7 @@ def build_new_supervised_df(knn_df, correlations):
 
     # get all class 1 in correlations
     topic_ids = set(knn_df.topic_id.values)
-    filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)]
+    filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)].dropna()
     for i, row in tqdm(filtered_correlations.iterrows()):
         content_ids = row["content_ids"].split(" ")
         if content_ids:

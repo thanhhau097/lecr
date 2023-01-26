@@ -74,6 +74,9 @@ def main():
     print("Reading correlation data CSV", data_args.correlation_path)
     correlation_df = pd.read_csv(data_args.correlation_path)
 
+    train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
+    val_topic_ids = set(data_df[data_df["fold"] == fold].topics_ids.values)
+
     if data_args.use_translated:
         print("Reading translated topic data CSV", data_args.translated_topic_path)
         translated_topic_df = pd.read_csv(data_args.translated_topic_path)
@@ -85,16 +88,13 @@ def main():
         # add to topic_df, content_df, correlation_df
         # about correlation_df, for training set, we add all correlations
         # but for validation set, we only keep the original ones
-        translated_topic_df = translated_topic_df.drop(columns=["origin_id", "origin_parent"])
-        topic_df = pd.concat([topic_df, translated_topic_df])
-
-        translated_content_df = translated_content_df.drop(columns=["origin_id"])
-        content_df = pd.concat([content_df, translated_content_df])
+        topic_df = pd.concat([topic_df, translated_topic_df.drop(columns=["origin_id", "origin_parent"])], ignore_index=True)
+        content_df = pd.concat([content_df, translated_content_df.drop(columns=["origin_id"])], ignore_index=True)
         
         # drop all rows that contains val topic_ids in translated_correlation_df
-        train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
+        train_topic_ids = set(train_topic_ids).union(set(translated_topic_df[translated_topic_df.origin_id.isin(train_topic_ids)].id.values))
         translated_correlation_df = translated_correlation_df[translated_correlation_df.topic_id.isin(train_topic_ids)]
-        correlation_df = pd.concat([correlation_df, translated_correlation_df])
+        correlation_df = pd.concat([correlation_df, translated_correlation_df], ignore_index=True)
 
     tokenizer = init_tokenizer(model_args.tokenizer_name)
     topic_dict, content_dict = get_processed_text_dict(
@@ -162,8 +162,8 @@ def main():
     if model_args.objective == "siamese":
         callback = DatasetUpdateCallback(
             trainer=trainer,
-            train_topic_ids=set(data_df[data_df["fold"] != fold].topics_ids.values),
-            val_topic_ids=set(data_df[data_df["fold"] == fold].topics_ids.values),
+            train_topic_ids=train_topic_ids,
+            val_topic_ids=val_topic_ids,
             topic_df=topic_df,
             content_df=content_df,
             topic_dict=topic_dict,

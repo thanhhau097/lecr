@@ -92,6 +92,7 @@ def get_processed_text_dict(topic_df, content_df, sep_token):
     # Fillna descriptions
     topic_df["description"].fillna("", inplace=True)
     content_df["description"].fillna("", inplace=True)
+    content_df["text"].fillna("", inplace=True)
 
     # clean text
     print("Cleaning text data for topics")
