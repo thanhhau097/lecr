@@ -29,7 +29,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs_siamese/ --evaluat
 ```
 
 #### sentence-transformers/all-mpnet-base-v2 
-CUDA_VISIBLE_DEVICES=1 python train.py --output_dir ./outputs_all-mpnet-base-v2/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 200 --fp16 --warmup_ratio 0.1 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name sentence-transformers/all-mpnet-base-v2  --model_name sentence-transformers/all-mpnet-base-v2 --fold 0 --dataloader_num_workers 32 --learning_rate 2e-5  --num_train_epochs 50 --per_device_train_batch_size 128 --per_device_eval_batch_size 128 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --top_k_neighbors 50
+CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs_all-mpnet-base-v2/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 200 --fp16 --warmup_ratio 0.1 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name sentence-transformers/all-mpnet-base-v2  --model_name sentence-transformers/all-mpnet-base-v2 --fold 0 --dataloader_num_workers 32 --learning_rate 2e-5  --num_train_epochs 50 --per_device_train_batch_size 128 --per_device_eval_batch_size 128 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --top_k_neighbors 50
 
 ### xlm-roberta-base
 ```
@@ -58,7 +58,9 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
     Note: or we can change top-k dataset pairs every epoch: https://stackoverflow.com/questions/72750887/how-to-update-training-dataset-at-epoch-begin-in-huggingface-trainer-using-callb
 - [ ] Add Siamese embeddings to classification models
 - [ ] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence)
-- [ ] Add grandparents, grandchildren info
+- [x] Add grandparents, grandchildren info
+- [ ] Merge 2 stages and train end2end pipeline
+- [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public

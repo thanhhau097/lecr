@@ -220,14 +220,25 @@ class LECRDataset(Dataset):
         label = self.labels[idx]
 
         # topic
-        topic_inputs = self.tokenizer.encode_plus(
-            topic_text,
-            return_tensors=None,
-            add_special_tokens=True,
-            max_length=self.max_len,
-            padding="max_length",
-            truncation=True,
-        )
+        if isinstance(topic_text, tuple):
+            topic_inputs = self.tokenizer.encode_plus(
+                topic_text[0],
+                topic_text[1],
+                return_tensors=None,
+                add_special_tokens=True,
+                max_length=self.max_len,
+                padding="max_length",
+                truncation=True,
+            )
+        else:
+            topic_inputs = self.tokenizer.encode_plus(
+                topic_text,
+                return_tensors=None,
+                add_special_tokens=True,
+                max_length=self.max_len,
+                padding="max_length",
+                truncation=True,
+            )
         for k, v in topic_inputs.items():
             topic_inputs[k] = torch.tensor(v, dtype=torch.long)
 
@@ -242,6 +253,9 @@ class LECRDataset(Dataset):
         )
         for k, v in content_inputs.items():
             content_inputs[k] = torch.tensor(v, dtype=torch.long)
+
+        if isinstance(topic_text, tuple):
+            topic_text = topic_text[0] + topic_text[1]
 
         combined_inputs = self.tokenizer.encode_plus(
             topic_text,
