@@ -320,7 +320,8 @@ class DatasetUpdateCallback(TrainerCallback):
         tokenizer_name,
         max_len,
         best_score=0,
-        top_k=50
+        top_k=50,
+        use_translated=False,
     ):
         super(DatasetUpdateCallback, self).__init__()
         self.trainer = trainer
@@ -329,6 +330,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.correlation_df = correlation_df
         self.best_score = best_score
         self.top_k = top_k
+        self.use_translated = use_translated
 
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
@@ -343,6 +345,10 @@ class DatasetUpdateCallback(TrainerCallback):
             for topic_id in self.topic_df.id.values
             if topic_id in train_topic_ids
         ]
+        self.train_topic_languages = []
+        for topic_id, topic_lang in zip(self.topic_df.id.values, self.topic_df.language.values):
+            if topic_id in train_topic_ids:
+                self.train_topic_languages.append(topic_lang)
 
         val_topic_texts = [
             topic_dict[topic_id]
@@ -510,10 +516,44 @@ class DatasetUpdateCallback(TrainerCallback):
                 train_predictions.append(p)
 
             train_knn_preds = pd.DataFrame(
-                {"topic_id": self.train_topic_ids, "content_ids": train_predictions}
+                {"topic_id": self.train_topic_ids, "content_ids": train_predictions, "language": self.train_topic_languages}
             ).sort_values("topic_id")
 
             print("Building new train supervised df")
+            if self.use_translated:
+                # TODO: 50000 topics each epochs, we have to sample with language distribution, instead of random
+                count_dict = {
+                    'ar': 3701,
+                    'as': 167,
+                    'bg': 2867,
+                    'bn': 2176,
+                    'en': 36161,
+                    'es': 13910,
+                    'fil': 247,
+                    'fr': 3701,
+                    'gu': 2320,
+                    'hi': 1786,
+                    'it': 866,
+                    'km': 121,
+                    'kn': 119,
+                    'mr': 300,
+                    'mul': 4,
+                    'my': 135,
+                    'or': 70,
+                    'pl': 43,
+                    'pnb': 51,
+                    'pt': 4177,
+                    'ru': 34,
+                    'sw': 2860,
+                    'swa': 35,
+                    'ta': 60,
+                    'te': 93,
+                    'tr': 40,
+                    'ur': 66,
+                    'zh': 862
+                }
+                train_knn_preds = train_knn_preds.groupby('language').apply(lambda x: x.sample(n=count_dict[x["language"].iat[0]], replace=True)).reset_index(drop=True)
+
             new_train_supervised_df = build_new_supervised_df(
                 train_knn_preds, self.correlation_df
             )

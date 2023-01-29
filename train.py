@@ -173,6 +173,7 @@ def main():
             max_len=data_args.max_len,
             best_score=0,
             top_k=data_args.top_k_neighbors,
+            use_translated=data_args.use_translated,
         )
         trainer.add_callback(callback)
 

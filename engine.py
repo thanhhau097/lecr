@@ -1,3 +1,4 @@
+import gc
 from typing import Dict
 
 import numpy as np
@@ -148,6 +149,8 @@ class CustomTrainer(Trainer):
         del inputs["topic_inputs"]
         del inputs["content_inputs"]
         del inputs["combined_inputs"]
+
+        gc.collect()
         return loss, outputs, inputs["labels"]
 
 
