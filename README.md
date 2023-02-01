@@ -57,8 +57,9 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
     4. Train classifier to get last classifier - reranking.
     Note: or we can change top-k dataset pairs every epoch: https://stackoverflow.com/questions/72750887/how-to-update-training-dataset-at-epoch-begin-in-huggingface-trainer-using-callb
 - [ ] Add Siamese embeddings to classification models
-- [ ] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence)
+- [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence) => not working
 - [x] Add grandparents, grandchildren info
+- [ ] Swap order when training classification model for augmentation
 - [ ] Merge 2 stages and train end2end pipeline
 - [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
 
