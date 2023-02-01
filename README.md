@@ -61,6 +61,8 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
 - [ ] BM25 retrieval
 - [ ] Augmentation text data. i,e using [MASK]
+- [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence) => not working
+- [x] Add grandparents, grandchildren info
 - [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
 
 2. Classification
@@ -68,6 +70,7 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [ ] Merge 2 stages and train end2end pipeline
 - [ ] Add f2 score directly to evaluation epoch
 - [ ] KFold XGBoost
+- [ ] Swap order when training classification model for augmentation
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public

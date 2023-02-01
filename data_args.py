@@ -37,3 +37,7 @@ class DataArguments:
     translated_correlation_path: str = field(
         default="./data/translated_correlations.csv", metadata={"help": "translated correlation csv path"}
     )
+    use_sampler: bool = field(
+        default=False, metadata={"help": "Use custom sampler"}
+    )
+    pn_ratio: int = field(default=1, metadata={"help": "Positive/negative ratio"})

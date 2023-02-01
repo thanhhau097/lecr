@@ -5,10 +5,12 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+from torchvision.ops import sigmoid_focal_loss
 from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
+from samplers import ProportionalTwoClassesBatchSampler
 
 from typing import Iterable, Dict
 import torch.nn.functional as F
@@ -60,6 +62,18 @@ class OnlineContrastiveLoss(nn.Module):
 
 
 class CustomTrainer(Trainer):
+    def __init__(self, pos_neg_ratio=1, **kwargs):
+        super().__init__(**kwargs)
+        self.pos_neg_ratio = pos_neg_ratio
+
+    def _get_train_sampler(self):
+        pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
+        return ProportionalTwoClassesBatchSampler(
+            np.array(self.train_dataset.labels),
+            self.args.train_batch_size,
+            minority_size_in_batch=pos_bsize,
+        )
+
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         for k, v in inputs["topic_inputs"].items():
@@ -74,6 +88,7 @@ class CustomTrainer(Trainer):
 
         labels = inputs.get("labels")
         if model.objective == "classification":
+            # loss_fct = sigmoid_focal_loss
             loss_fct = F.binary_cross_entropy_with_logits
             loss = loss_fct(outputs.view(-1), labels.float())
         elif model.objective == "siamese":

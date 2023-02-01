@@ -150,14 +150,25 @@ def main():
     model = model.to(device)
 
     print("Start training...")
-    trainer = CustomTrainer(
-        model=model,
-        args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=val_dataset,
-        data_collator=collate_fn,
-        compute_metrics=compute_metrics,
-    )
+    if model_args.objective == "classification" and data_args.use_sampler:
+        trainer = CustomTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=val_dataset,
+            data_collator=collate_fn,
+            compute_metrics=compute_metrics,
+            pos_neg_ratio=data_args.pn_ratio,
+        )
+    else:
+        trainer = CustomTrainer(
+            model=model,
+            args=training_args,
+            train_dataset=train_dataset,
+            eval_dataset=val_dataset,
+            data_collator=collate_fn,
+            compute_metrics=compute_metrics,
+        )
 
     if model_args.objective == "siamese":
         callback = DatasetUpdateCallback(
