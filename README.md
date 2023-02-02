@@ -59,8 +59,17 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add grandparents, grandchildren info
 - [x] Pretrained Cross Encoder: https://www.sbert.net/docs/pretrained_cross-encoders.html
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
+- [ ] Pretrained using pair translation:
+    - [ ] Only add positive cases in training set
+    - [ ] Only evaluate (KNN) with original contents
 - [ ] BM25 retrieval
 - [ ] Augmentation text data. i,e using [MASK]
+    ```
+    probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
+    masked_indices = torch.bernoulli(probability_matrix).bool()
+    indices_replaced = torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool() & masked_indices
+    inputs["input_ids"][indices_replaced] = tokenizer.convert_tokens_to_ids(tokenizer.mask_token)
+    ```
 - [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence) => not working
 - [x] Add grandparents, grandchildren info
 - [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
