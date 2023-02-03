@@ -41,3 +41,9 @@ class DataArguments:
         default=False, metadata={"help": "Use custom sampler"}
     )
     pn_ratio: int = field(default=1, metadata={"help": "Positive/negative ratio"})
+    use_augmentation: bool = field(
+        default=False, metadata={"help": "Use augmentation for text"}
+    )
+    use_no_content_topics: bool = field(
+        default=False, metadata={"help": "Use augmentation for text"}
+    )

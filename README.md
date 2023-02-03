@@ -55,15 +55,15 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
     3. Get top-k to generate new pairs, repeat step 2 (until top-k max postitive score doesn't change much, go to step 4)
     4. Train classifier to get last classifier - reranking.
     Note: or we can change top-k dataset pairs every epoch: https://stackoverflow.com/questions/72750887/how-to-update-training-dataset-at-epoch-begin-in-huggingface-trainer-using-callb
-- [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence)
+- [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence) => not working
 - [x] Add grandparents, grandchildren info
 - [x] Pretrained Cross Encoder: https://www.sbert.net/docs/pretrained_cross-encoders.html
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
 - [ ] Pretrained using pair translation:
-    - [ ] Only add positive cases in training set
+    - [ ] Only add positive cases in training set for translated topics
+    - [ ] Only original contents for original topics
     - [ ] Only evaluate (KNN) with original contents
-- [ ] BM25 retrieval
-- [ ] Augmentation text data. i,e using [MASK]
+- [x] Augmentation text data. i,e using [MASK] => not working
     ```
     probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
     masked_indices = torch.bernoulli(probability_matrix).bool()
@@ -73,12 +73,14 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Leave the context: parents + children of topics as a separated information in tokenizer.encode (consider it as a second sequence) => not working
 - [x] Add grandparents, grandchildren info
 - [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
+- [x] Add parents and childs information before description of titles because of the description may be long. => not working
 
 2. Classification
+- [ ] KFold XGBoost
+- [ ] BM25 retrieval for filtering?
 - [ ] Add Siamese embeddings to classification models
 - [ ] Merge 2 stages and train end2end pipeline
 - [ ] Add f2 score directly to evaluation epoch
-- [ ] KFold XGBoost
 - [ ] Swap order when training classification model for augmentation
 
 # Generate negative data based on this:

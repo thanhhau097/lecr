@@ -120,6 +120,8 @@ class LECRDataset(Dataset):
         tokenizer_name="xlm-roberta-base",
         max_len=512,
         use_content_pair=False,
+        is_training=False,
+        use_augmentation=False
     ):
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.max_len = max_len
@@ -130,6 +132,8 @@ class LECRDataset(Dataset):
         self.topic_dict, self.content_dict = topic_dict, content_dict
         self.correlation_df = correlation_df
         self.use_content_pair = use_content_pair
+        self.is_training = is_training
+        self.use_augmentation = use_augmentation
         self.topic_texts, self.content_texts, self.labels = self.process_csv()
 
     def process_csv(self):
@@ -214,6 +218,15 @@ class LECRDataset(Dataset):
     def __len__(self):
         return len(self.labels)
 
+    def augment(self, inputs):
+        probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
+        masked_indices = torch.bernoulli(probability_matrix).bool()
+        indices_replaced = torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool() & masked_indices
+        inputs["input_ids"][indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+        inputs["input_ids"] *= inputs["attention_mask"]
+
+        return inputs
+
     def __getitem__(self, idx):
         topic_text = self.topic_texts[idx]
         content_text = self.content_texts[idx]
@@ -268,6 +281,11 @@ class LECRDataset(Dataset):
         )
         for k, v in combined_inputs.items():
             combined_inputs[k] = torch.tensor(v, dtype=torch.long)
+
+        if self.is_training and self.use_augmentation:
+            topic_inputs = self.augment(topic_inputs)
+            content_inputs = self.augment(content_inputs)
+            combined_inputs = self.augment(combined_inputs)
 
         return topic_inputs, content_inputs, combined_inputs, label
 
@@ -446,42 +464,90 @@ class DatasetUpdateCallback(TrainerCallback):
         torch.cuda.empty_cache()
 
         # KNN model
+        content_idx_to_id = {}
+        for idx, row in self.content_df.iterrows():
+            content_idx_to_id[idx] = row.id
+
         print("Evaluating current score...")
-        for selected_k in [5, 10, 20, 50, 100, 200]:
-            neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
+        if self.use_translated:
+            # get 500 nearest contents, then select top k contents that is in original contents, just approximate, can't check all
+            neighbors_model = NearestNeighbors(n_neighbors=500, metric="cosine")
             neighbors_model.fit(content_embs_gpu)
 
+            indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
+            for selected_k in [5, 10, 20, 50, 100, 200]:
+                predictions = []
+                for k in tqdm(range(len(indices))):
+                    pred = indices[k]
+                    # original_contents = [self.content_df.loc[ind, "id"] for ind in pred.get() if self.content_df.loc[ind, "id"].startswith("c_")]
+                    original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
+                    p = " ".join(original_contents[:selected_k])
+                    predictions.append(p)
+                
+                knn_preds = pd.DataFrame(
+                    {"topic_id": self.val_topic_ids, "content_ids": predictions}
+                ).sort_values("topic_id")
+
+                gt = self.correlation_df[
+                    self.correlation_df.topic_id.isin(self.val_topic_ids)
+                ].sort_values("topic_id")
+                score = get_pos_score(
+                    gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
+                )
+                print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
+            
+            print("Training KNN model...")
+            print("Generating KNN predictions with top_k =", self.top_k)
+            neighbors_model = NearestNeighbors(n_neighbors=500, metric="cosine")
+            neighbors_model.fit(content_embs_gpu)
+
+            print("Generating embedding for validation topics")
             indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
             predictions = []
             for k in tqdm(range(len(indices))):
                 pred = indices[k]
-                p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                # original_contents = [self.content_df.loc[ind, "id"] for ind in pred.get() if self.content_df.loc[ind, "id"].startswith("c_")]
+                original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
+                p = " ".join(original_contents[:self.top_k])
                 predictions.append(p)
+        else:
+            for selected_k in [5, 10, 20, 50, 100, 200]:
+                neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
+                neighbors_model.fit(content_embs_gpu)
 
-            knn_preds = pd.DataFrame(
-                {"topic_id": self.val_topic_ids, "content_ids": predictions}
-            ).sort_values("topic_id")
+                indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
+                predictions = []
+                for k in tqdm(range(len(indices))):
+                    pred = indices[k]
+                    # p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                    p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
+                    predictions.append(p)
 
-            gt = self.correlation_df[
-                self.correlation_df.topic_id.isin(self.val_topic_ids)
-            ].sort_values("topic_id")
-            score = get_pos_score(
-                gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
-            )
-            print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
+                knn_preds = pd.DataFrame(
+                    {"topic_id": self.val_topic_ids, "content_ids": predictions}
+                ).sort_values("topic_id")
 
-        print("Training KNN model...")
-        print("Generating KNN predictions with top_k =", self.top_k)
-        neighbors_model = NearestNeighbors(n_neighbors=self.top_k, metric="cosine")
-        neighbors_model.fit(content_embs_gpu)
+                gt = self.correlation_df[
+                    self.correlation_df.topic_id.isin(self.val_topic_ids)
+                ].sort_values("topic_id")
+                score = get_pos_score(
+                    gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
+                )
+                print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
 
-        print("Generating embedding for validation topics")
-        indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
-        predictions = []
-        for k in tqdm(range(len(indices))):
-            pred = indices[k]
-            p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
-            predictions.append(p)
+            print("Training KNN model...")
+            print("Generating KNN predictions with top_k =", self.top_k)
+            neighbors_model = NearestNeighbors(n_neighbors=self.top_k, metric="cosine")
+            neighbors_model.fit(content_embs_gpu)
+
+            print("Generating embedding for validation topics")
+            indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
+            predictions = []
+            for k in tqdm(range(len(indices))):
+                pred = indices[k]
+                # p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
+                predictions.append(p)
 
         knn_preds = pd.DataFrame(
             {"topic_id": self.val_topic_ids, "content_ids": predictions}
@@ -523,10 +589,18 @@ class DatasetUpdateCallback(TrainerCallback):
             train_indices = neighbors_model.kneighbors(
                 train_topic_embs_gpu, return_distance=False
             )
+
+            # if self.use_translated:
+            #     topic_language_df = pd.DataFrame({
+            #         "topic_id": self.train_topic_ids,
+            #         "language": self.train_topic_languages
+            #     })
+
             train_predictions = []
             for k in tqdm(range(len(train_indices))):
                 pred = train_indices[k]
-                p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                # p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
+                p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
                 train_predictions.append(p)
 
             train_knn_preds = pd.DataFrame(
@@ -566,12 +640,26 @@ class DatasetUpdateCallback(TrainerCallback):
                     'ur': 66,
                     'zh': 862
                 }
-                train_knn_preds = train_knn_preds.groupby('language').apply(lambda x: x.sample(n=count_dict[x["language"].iat[0]], replace=True)).reset_index(drop=True)
+
+                # select all original topics and a part of translated topics
+                translated_knn_preds = train_knn_preds[~train_knn_preds.topic_id.str.startswith("t_")].groupby('language').apply(lambda x: x.sample(n=count_dict[x["language"].iat[0]], replace=True)).reset_index(drop=True)
+                original_knn_preds = train_knn_preds[train_knn_preds.topic_id.str.startswith("t_")]
+
+                train_knn_preds = pd.concat([original_knn_preds, translated_knn_preds])
 
             new_train_supervised_df = build_new_supervised_df(
                 train_knn_preds, self.correlation_df
             )
-            
+
+            if self.use_translated:
+                # Only add positive cases in training set for translated topics
+                translated_supervised_df = new_train_supervised_df[~new_train_supervised_df.topics_ids.str.startswith("t_") & new_train_supervised_df.target == 1]
+
+                # Only original contents for original topics
+                original_supervised_df = new_train_supervised_df[new_train_supervised_df.topics_ids.str.startswith("t_") & new_train_supervised_df.content_ids.str.startswith("c_")]
+
+                new_train_supervised_df = pd.concat([translated_supervised_df, original_supervised_df])
+
             if score == self.best_score: # only save for the best checkpoint
                 print("saving new_train_supervised_df to data/ folder")
                 new_train_supervised_df.to_csv("data/new_train_supervised_df.csv")
@@ -648,9 +736,9 @@ def build_new_supervised_df(knn_df, correlations):
     mapping = list(mapping)
     new_df = pd.DataFrame(
         {
-            "topics_ids": [item[0] for item in mapping],
-            "content_ids": [item[1] for item in mapping],
-            "target": [item[2] for item in mapping],
+            "topics_ids": [item[0] for item in mapping if item[1]],
+            "content_ids": [item[1] for item in mapping if item[1]],
+            "target": [item[2] for item in mapping if item[1]],
         }
     )
     # Release memory

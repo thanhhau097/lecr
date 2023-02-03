@@ -74,7 +74,10 @@ def main():
     print("Reading correlation data CSV", data_args.correlation_path)
     correlation_df = pd.read_csv(data_args.correlation_path)
 
-    train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
+    if data_args.use_no_content_topics:
+        train_topic_ids = set(topic_df.id.values).difference(set(data_df[data_df["fold"] == fold].topics_ids.values))
+    else:
+        train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
     val_topic_ids = set(data_df[data_df["fold"] == fold].topics_ids.values)
 
     if data_args.use_translated:
@@ -111,6 +114,8 @@ def main():
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
         use_content_pair=data_args.use_content_pair,
+        is_training=True,
+        use_augmentation=data_args.use_augmentation
     )
 
     val_dataset = LECRDataset(
@@ -123,6 +128,8 @@ def main():
         tokenizer_name=model_args.tokenizer_name,
         max_len=data_args.max_len,
         use_content_pair=False,
+        is_training=False,
+        use_augmentation=data_args.use_augmentation
     )
 
     # Initialize trainer
