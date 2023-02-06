@@ -115,7 +115,8 @@ def main():
         max_len=data_args.max_len,
         use_content_pair=data_args.use_content_pair,
         is_training=True,
-        use_augmentation=data_args.use_augmentation
+        use_augmentation=data_args.use_augmentation,
+        objective=model_args.objective,
     )
 
     val_dataset = LECRDataset(
@@ -129,7 +130,8 @@ def main():
         max_len=data_args.max_len,
         use_content_pair=False,
         is_training=False,
-        use_augmentation=data_args.use_augmentation
+        use_augmentation=data_args.use_augmentation,
+        objective=model_args.objective,
     )
 
     # Initialize trainer

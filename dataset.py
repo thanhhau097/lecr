@@ -121,7 +121,8 @@ class LECRDataset(Dataset):
         max_len=512,
         use_content_pair=False,
         is_training=False,
-        use_augmentation=False
+        use_augmentation=False,
+        objective="siamese",
     ):
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.max_len = max_len
@@ -134,6 +135,7 @@ class LECRDataset(Dataset):
         self.use_content_pair = use_content_pair
         self.is_training = is_training
         self.use_augmentation = use_augmentation
+        self.objective = objective
         self.topic_texts, self.content_texts, self.labels = self.process_csv()
 
     def process_csv(self):
@@ -209,8 +211,8 @@ class LECRDataset(Dataset):
                                 )
 
             for pair in pairs:
-                topic_texts.append(content_dict[pair[0]])
-                content_texts.append(content_dict[pair[1]])
+                topic_texts.append(self.content_dict[pair[0]])
+                content_texts.append(self.content_dict[pair[1]])
                 labels.append(1)
 
         return topic_texts, content_texts, labels
@@ -232,62 +234,69 @@ class LECRDataset(Dataset):
         content_text = self.content_texts[idx]
         label = self.labels[idx]
 
-        # topic
-        if isinstance(topic_text, tuple):
-            topic_inputs = self.tokenizer.encode_plus(
-                topic_text[0],
-                topic_text[1],
+        if self.objective == "siamese":
+            # topic
+            if isinstance(topic_text, tuple):
+                topic_inputs = self.tokenizer.encode_plus(
+                    topic_text[0],
+                    topic_text[1],
+                    return_tensors=None,
+                    add_special_tokens=True,
+                    max_length=self.max_len,
+                    padding="max_length",
+                    truncation=True,
+                )
+            else:
+                topic_inputs = self.tokenizer.encode_plus(
+                    topic_text,
+                    return_tensors=None,
+                    add_special_tokens=True,
+                    max_length=self.max_len,
+                    padding="max_length",
+                    truncation=True,
+                )
+            for k, v in topic_inputs.items():
+                topic_inputs[k] = torch.tensor(v, dtype=torch.long)
+
+            # content
+            content_inputs = self.tokenizer.encode_plus(
+                content_text,
                 return_tensors=None,
                 add_special_tokens=True,
                 max_length=self.max_len,
                 padding="max_length",
                 truncation=True,
             )
-        else:
-            topic_inputs = self.tokenizer.encode_plus(
+            for k, v in content_inputs.items():
+                content_inputs[k] = torch.tensor(v, dtype=torch.long)
+
+            if isinstance(topic_text, tuple):
+                topic_text = topic_text[0] + topic_text[1]
+
+            if self.is_training and self.use_augmentation:
+                topic_inputs = self.augment(topic_inputs)
+                content_inputs = self.augment(content_inputs)
+
+            return topic_inputs, content_inputs, topic_inputs, label
+        elif self.objective == "classification":
+            combined_inputs = self.tokenizer.encode_plus(
                 topic_text,
+                content_text,
                 return_tensors=None,
                 add_special_tokens=True,
                 max_length=self.max_len,
                 padding="max_length",
                 truncation=True,
             )
-        for k, v in topic_inputs.items():
-            topic_inputs[k] = torch.tensor(v, dtype=torch.long)
+            for k, v in combined_inputs.items():
+                combined_inputs[k] = torch.tensor(v, dtype=torch.long)
 
-        # content
-        content_inputs = self.tokenizer.encode_plus(
-            content_text,
-            return_tensors=None,
-            add_special_tokens=True,
-            max_length=self.max_len,
-            padding="max_length",
-            truncation=True,
-        )
-        for k, v in content_inputs.items():
-            content_inputs[k] = torch.tensor(v, dtype=torch.long)
+            if self.is_training and self.use_augmentation:
+                combined_inputs = self.augment(combined_inputs)
 
-        if isinstance(topic_text, tuple):
-            topic_text = topic_text[0] + topic_text[1]
-
-        combined_inputs = self.tokenizer.encode_plus(
-            topic_text,
-            content_text,
-            return_tensors=None,
-            add_special_tokens=True,
-            max_length=self.max_len,
-            padding="max_length",
-            truncation=True,
-        )
-        for k, v in combined_inputs.items():
-            combined_inputs[k] = torch.tensor(v, dtype=torch.long)
-
-        if self.is_training and self.use_augmentation:
-            topic_inputs = self.augment(topic_inputs)
-            content_inputs = self.augment(content_inputs)
-            combined_inputs = self.augment(combined_inputs)
-
-        return topic_inputs, content_inputs, combined_inputs, label
+            return combined_inputs, combined_inputs, combined_inputs, label
+        else:
+            raise ValueError("Only support siamese/classification for now.")
 
 
 class InferenceDataset(Dataset):
