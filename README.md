@@ -76,12 +76,13 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add parents and childs information before description of titles because of the description may be long. => not working
 
 2. Classification
-- [ ] KFold XGBoost
+- [x] KFold XGBoost
 - [ ] BM25 retrieval for filtering?
 - [ ] Add Siamese embeddings to classification models
 - [ ] Merge 2 stages and train end2end pipeline
 - [ ] Add f2 score directly to evaluation epoch
-- [ ] Swap order when training classification model for augmentation
+- [x] Swap order when training classification model for augmentation
+- [ ] Add title of nearest content to topic text, then retrieve again / or retrieve nearest of that content.
 
 # Generate negative data based on this:
 1. https://www.kaggle.com/code/ragnar123/lecr-unsupervised-train-set-public
