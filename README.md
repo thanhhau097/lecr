@@ -74,6 +74,8 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add grandparents, grandchildren info
 - [ ] Test/Validation phase: add all train topic titles to content descriptions in validation/test phase to see if it improves the result. If we add it in training phase, the model maybe overfitted, but let's try.
 - [x] Add parents and childs information before description of titles because of the description may be long. => not working
+- [ ] Experiment with gradient checkpointing
+- [ ] Experiment with gradient_accumulation_steps
 
 2. Classification
 - [x] KFold XGBoost

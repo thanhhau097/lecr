@@ -223,8 +223,13 @@ class LECRDataset(Dataset):
     def augment(self, inputs):
         probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
         masked_indices = torch.bernoulli(probability_matrix).bool()
-        indices_replaced = torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool() & masked_indices
-        inputs["input_ids"][indices_replaced] = self.tokenizer.convert_tokens_to_ids(self.tokenizer.mask_token)
+        indices_replaced = (
+            torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool()
+            & masked_indices
+        )
+        inputs["input_ids"][indices_replaced] = self.tokenizer.convert_tokens_to_ids(
+            self.tokenizer.mask_token
+        )
         inputs["input_ids"] *= inputs["attention_mask"]
 
         return inputs
@@ -387,7 +392,9 @@ class DatasetUpdateCallback(TrainerCallback):
             if topic_id in train_topic_ids
         ]
         self.train_topic_languages = []
-        for topic_id, topic_lang in zip(self.topic_df.id.values, self.topic_df.language.values):
+        for topic_id, topic_lang in zip(
+            self.topic_df.id.values, self.topic_df.language.values
+        ):
             if topic_id in train_topic_ids:
                 self.train_topic_languages.append(topic_lang)
 
@@ -403,7 +410,7 @@ class DatasetUpdateCallback(TrainerCallback):
         ]
 
         content_texts = [
-            content_dict[content_id] for content_id in self.content_df.id.values
+            content_dict[content_id] for content_id in self.content_df.id.values if content_id.startswith("c_")
         ]
 
         def inference_collate_fn(inputs):
@@ -458,7 +465,7 @@ class DatasetUpdateCallback(TrainerCallback):
             topic_embs.extend(out.cpu().detach().numpy())
 
         content_embs = []
-
+        # TODO: only use original content embeddings to avoid translation confusing
         for inputs in tqdm(self.content_dataloader):
             for k, v in inputs.items():
                 inputs[k] = inputs[k].to(device)
@@ -480,8 +487,21 @@ class DatasetUpdateCallback(TrainerCallback):
         print("Evaluating current score...")
         if self.use_translated:
             # get 500 nearest contents, then select top k contents that is in original contents, just approximate, can't check all
+            original_indices = [ # indices of original contents in self.content_df
+                i
+                for i, emb in enumerate(content_embs)
+                if self.content_df.id.values[i].startswith("c_")
+            ]
+            # original_content_embs = [
+            #     emb
+            #     for i, emb in enumerate(content_embs)
+            #     if self.content_df.id.values[i].startswith("c_")
+            # ]
+            # original_content_embs_gpu = cp.array(original_content_embs)
+            original_content_embs_gpu = content_embs_gpu
+
             neighbors_model = NearestNeighbors(n_neighbors=500, metric="cosine")
-            neighbors_model.fit(content_embs_gpu)
+            neighbors_model.fit(original_content_embs_gpu)
 
             indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
             for selected_k in [5, 10, 20, 50, 100, 200]:
@@ -489,10 +509,13 @@ class DatasetUpdateCallback(TrainerCallback):
                 for k in tqdm(range(len(indices))):
                     pred = indices[k]
                     # original_contents = [self.content_df.loc[ind, "id"] for ind in pred.get() if self.content_df.loc[ind, "id"].startswith("c_")]
-                    original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
+                    # original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
+                    original_contents = [
+                        content_idx_to_id[original_indices[ind]] for ind in pred.get()
+                    ]
                     p = " ".join(original_contents[:selected_k])
                     predictions.append(p)
-                
+
                 knn_preds = pd.DataFrame(
                     {"topic_id": self.val_topic_ids, "content_ids": predictions}
                 ).sort_values("topic_id")
@@ -501,14 +524,27 @@ class DatasetUpdateCallback(TrainerCallback):
                     self.correlation_df.topic_id.isin(self.val_topic_ids)
                 ].sort_values("topic_id")
                 score = get_pos_score(
-                    gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
+                    gt["content_ids"],
+                    knn_preds.sort_values("topic_id")["content_ids"],
+                    selected_k,
                 )
-                print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
-            
+                print(
+                    "Selecting",
+                    selected_k,
+                    "nearest contents",
+                    "top-k score =",
+                    f2_score(
+                        gt["content_ids"],
+                        knn_preds.sort_values("topic_id")["content_ids"],
+                    ),
+                    "max positive score =",
+                    score,
+                )
+
             print("Training KNN model...")
             print("Generating KNN predictions with top_k =", self.top_k)
-            neighbors_model = NearestNeighbors(n_neighbors=500, metric="cosine")
-            neighbors_model.fit(content_embs_gpu)
+            neighbors_model = NearestNeighbors(n_neighbors=self.top_k, metric="cosine")
+            neighbors_model.fit(original_content_embs_gpu)
 
             print("Generating embedding for validation topics")
             indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
@@ -516,15 +552,22 @@ class DatasetUpdateCallback(TrainerCallback):
             for k in tqdm(range(len(indices))):
                 pred = indices[k]
                 # original_contents = [self.content_df.loc[ind, "id"] for ind in pred.get() if self.content_df.loc[ind, "id"].startswith("c_")]
-                original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
-                p = " ".join(original_contents[:self.top_k])
+                # original_contents = [content_idx_to_id[ind] for ind in pred.get() if content_idx_to_id[ind].startswith("c_")]
+                original_contents = [
+                    content_idx_to_id[original_indices[ind]] for ind in pred.get()
+                ]
+                p = " ".join(original_contents[: self.top_k])
                 predictions.append(p)
         else:
             for selected_k in [5, 10, 20, 50, 100, 200]:
-                neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
+                neighbors_model = NearestNeighbors(
+                    n_neighbors=selected_k, metric="cosine"
+                )
                 neighbors_model.fit(content_embs_gpu)
 
-                indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
+                indices = neighbors_model.kneighbors(
+                    topic_embs_gpu, return_distance=False
+                )
                 predictions = []
                 for k in tqdm(range(len(indices))):
                     pred = indices[k]
@@ -540,9 +583,22 @@ class DatasetUpdateCallback(TrainerCallback):
                     self.correlation_df.topic_id.isin(self.val_topic_ids)
                 ].sort_values("topic_id")
                 score = get_pos_score(
-                    gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], selected_k
+                    gt["content_ids"],
+                    knn_preds.sort_values("topic_id")["content_ids"],
+                    selected_k,
                 )
-                print("Selecting", selected_k, "nearest contents", "top-k score =", f2_score(gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"]), "max positive score =", score)
+                print(
+                    "Selecting",
+                    selected_k,
+                    "nearest contents",
+                    "top-k score =",
+                    f2_score(
+                        gt["content_ids"],
+                        knn_preds.sort_values("topic_id")["content_ids"],
+                    ),
+                    "max positive score =",
+                    score,
+                )
 
             print("Training KNN model...")
             print("Generating KNN predictions with top_k =", self.top_k)
@@ -563,27 +619,32 @@ class DatasetUpdateCallback(TrainerCallback):
         ).sort_values("topic_id")
 
         score = get_pos_score(
-            gt["content_ids"], knn_preds.sort_values("topic_id")["content_ids"], self.top_k
+            gt["content_ids"],
+            knn_preds.sort_values("topic_id")["content_ids"],
+            self.top_k,
         )
         print("Current Score:", score, "Best Score:", self.best_score)
 
         if score > self.best_score:
             self.best_score = score
             print("saving best model to data/ folder")
-            torch.save(self.trainer.model.state_dict(), f"data/siamese_model_{score}.pth")
-        
+            torch.save(
+                self.trainer.model.state_dict(), f"data/siamese_model_{score}.pth"
+            )
+
         generate_new_dataset_every_epoch = True
         if generate_new_dataset_every_epoch or (score == self.best_score):
             # generate new pairs in dataset
             print("Building new validation supervised df")
             new_val_supervised_df = build_new_supervised_df(
                 knn_preds, self.correlation_df
-            )
-            if score == self.best_score: # only save for the best checkpoint
+            )[["topics_ids", "content_ids", "target"]]
+            if score == self.best_score:  # only save for the best checkpoint
                 print("saving new_val_supervised_df to data/ folder")
                 new_val_supervised_df.to_csv("data/new_val_supervised_df.csv")
 
             # get top-k for training set
+            # TODO: only get original content neighbors for original topics
             print("Generating embedding for train topics")
             train_topic_embs = []
 
@@ -609,50 +670,71 @@ class DatasetUpdateCallback(TrainerCallback):
             for k in tqdm(range(len(train_indices))):
                 pred = train_indices[k]
                 # p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
-                p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
+                if self.use_translated:
+                    p = " ".join([content_idx_to_id[original_indices[ind]] for ind in pred.get()])
+                else:
+                    p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
+
                 train_predictions.append(p)
 
             train_knn_preds = pd.DataFrame(
-                {"topic_id": self.train_topic_ids, "content_ids": train_predictions, "language": self.train_topic_languages}
+                {
+                    "topic_id": self.train_topic_ids,
+                    "content_ids": train_predictions,
+                    "language": self.train_topic_languages,
+                }
             ).sort_values("topic_id")
 
             print("Building new train supervised df")
             if self.use_translated:
-                # TODO: 50000 topics each epochs, we have to sample with language distribution, instead of random
                 count_dict = {
-                    'ar': 3701,
-                    'as': 167,
-                    'bg': 2867,
-                    'bn': 2176,
-                    'en': 36161,
-                    'es': 13910,
-                    'fil': 247,
-                    'fr': 3701,
-                    'gu': 2320,
-                    'hi': 1786,
-                    'it': 866,
-                    'km': 121,
-                    'kn': 119,
-                    'mr': 300,
-                    'mul': 4,
-                    'my': 135,
-                    'or': 70,
-                    'pl': 43,
-                    'pnb': 51,
-                    'pt': 4177,
-                    'ru': 34,
-                    'sw': 2860,
-                    'swa': 35,
-                    'ta': 60,
-                    'te': 93,
-                    'tr': 40,
-                    'ur': 66,
-                    'zh': 862
+                    "ar": 3701,
+                    "as": 167,
+                    "bg": 2867,
+                    "bn": 2176,
+                    "en": 36161,
+                    "es": 13910,
+                    "fil": 247,
+                    "fr": 3701,
+                    "gu": 2320,
+                    "hi": 1786,
+                    "it": 866,
+                    "km": 121,
+                    "kn": 119,
+                    "mr": 300,
+                    "mul": 4,
+                    "my": 135,
+                    "or": 70,
+                    "pl": 43,
+                    "pnb": 51,
+                    "pt": 4177,
+                    "ru": 34,
+                    "sw": 2860,
+                    "swa": 35,
+                    "ta": 60,
+                    "te": 93,
+                    "tr": 40,
+                    "ur": 66,
+                    "zh": 862,
                 }
 
+                times_positive_samples = 4
+
                 # select all original topics and a part of translated topics
-                translated_knn_preds = train_knn_preds[~train_knn_preds.topic_id.str.startswith("t_")].groupby('language').apply(lambda x: x.sample(n=count_dict[x["language"].iat[0]], replace=True)).reset_index(drop=True)
-                original_knn_preds = train_knn_preds[train_knn_preds.topic_id.str.startswith("t_")]
+                translated_knn_preds = (
+                    train_knn_preds[~train_knn_preds.topic_id.str.startswith("t_")]
+                    .groupby("language")
+                    .apply(
+                        lambda x: x.sample(
+                            n=count_dict[x["language"].iat[0]] * times_positive_samples,
+                            replace=True,
+                        )
+                    )
+                    .reset_index(drop=True)
+                )
+                original_knn_preds = train_knn_preds[
+                    train_knn_preds.topic_id.str.startswith("t_")
+                ]
 
                 train_knn_preds = pd.concat([original_knn_preds, translated_knn_preds])
 
@@ -662,14 +744,23 @@ class DatasetUpdateCallback(TrainerCallback):
 
             if self.use_translated:
                 # Only add positive cases in training set for translated topics
-                translated_supervised_df = new_train_supervised_df[~new_train_supervised_df.topics_ids.str.startswith("t_") & new_train_supervised_df.target == 1]
+                translated_supervised_df = new_train_supervised_df[
+                    ~new_train_supervised_df.topics_ids.str.startswith("t_")
+                    & new_train_supervised_df.target
+                    == 1
+                ]
 
                 # Only original contents for original topics
-                original_supervised_df = new_train_supervised_df[new_train_supervised_df.topics_ids.str.startswith("t_") & new_train_supervised_df.content_ids.str.startswith("c_")]
+                original_supervised_df = new_train_supervised_df[
+                    new_train_supervised_df.topics_ids.str.startswith("t_")
+                    & new_train_supervised_df.content_ids.str.startswith("c_")
+                ]
 
-                new_train_supervised_df = pd.concat([translated_supervised_df, original_supervised_df])
+                new_train_supervised_df = pd.concat(
+                    [translated_supervised_df, original_supervised_df]
+                )[["topics_ids", "content_ids", "target"]]
 
-            if score == self.best_score: # only save for the best checkpoint
+            if score == self.best_score:  # only save for the best checkpoint
                 print("saving new_train_supervised_df to data/ folder")
                 new_train_supervised_df.to_csv("data/new_train_supervised_df.csv")
 
@@ -723,16 +814,18 @@ def build_new_supervised_df(knn_df, correlations):
 
     # get all class 1 in correlations
     topic_ids = set(knn_df.topic_id.values)
-    filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)].dropna()
+    filtered_correlations = correlations[
+        correlations["topic_id"].isin(topic_ids)
+    ]
     for i, row in tqdm(filtered_correlations.iterrows()):
-        content_ids = row["content_ids"].split(" ")
-        if content_ids:
+        if str(row["content_ids"]) and str(row["content_ids"]) != "nan":
+            content_ids = str(row["content_ids"]).split(" ")
             for content_id in content_ids:
                 mapping.add((row["topic_id"], content_id, 1))
 
     for i, row in tqdm(knn_df.iterrows()):
-        content_ids = row["content_ids"].split(" ")
-        if content_ids:
+        if str(row["content_ids"]) and str(row["content_ids"]) != "nan":
+            content_ids = str(row["content_ids"]).split(" ")
             for content_id in content_ids:
                 if (
                     row["topic_id"],
