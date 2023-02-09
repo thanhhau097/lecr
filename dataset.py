@@ -686,57 +686,57 @@ class DatasetUpdateCallback(TrainerCallback):
             ).sort_values("topic_id")
 
             print("Building new train supervised df")
-            if self.use_translated:
-                count_dict = {
-                    "ar": 3701,
-                    "as": 167,
-                    "bg": 2867,
-                    "bn": 2176,
-                    "en": 36161,
-                    "es": 13910,
-                    "fil": 247,
-                    "fr": 3701,
-                    "gu": 2320,
-                    "hi": 1786,
-                    "it": 866,
-                    "km": 121,
-                    "kn": 119,
-                    "mr": 300,
-                    "mul": 4,
-                    "my": 135,
-                    "or": 70,
-                    "pl": 43,
-                    "pnb": 51,
-                    "pt": 4177,
-                    "ru": 34,
-                    "sw": 2860,
-                    "swa": 35,
-                    "ta": 60,
-                    "te": 93,
-                    "tr": 40,
-                    "ur": 66,
-                    "zh": 862,
-                }
+            # if self.use_translated:
+            #     count_dict = {
+            #         "ar": 3701,
+            #         "as": 167,
+            #         "bg": 2867,
+            #         "bn": 2176,
+            #         "en": 36161,
+            #         "es": 13910,
+            #         "fil": 247,
+            #         "fr": 3701,
+            #         "gu": 2320,
+            #         "hi": 1786,
+            #         "it": 866,
+            #         "km": 121,
+            #         "kn": 119,
+            #         "mr": 300,
+            #         "mul": 4,
+            #         "my": 135,
+            #         "or": 70,
+            #         "pl": 43,
+            #         "pnb": 51,
+            #         "pt": 4177,
+            #         "ru": 34,
+            #         "sw": 2860,
+            #         "swa": 35,
+            #         "ta": 60,
+            #         "te": 93,
+            #         "tr": 40,
+            #         "ur": 66,
+            #         "zh": 862,
+            #     }
 
-                times_positive_samples = 4
+            #     times_positive_samples = 4
 
-                # select all original topics and a part of translated topics
-                translated_knn_preds = (
-                    train_knn_preds[~train_knn_preds.topic_id.str.startswith("t_")]
-                    .groupby("language")
-                    .apply(
-                        lambda x: x.sample(
-                            n=count_dict[x["language"].iat[0]] * times_positive_samples,
-                            replace=True,
-                        )
-                    )
-                    .reset_index(drop=True)
-                )
-                original_knn_preds = train_knn_preds[
-                    train_knn_preds.topic_id.str.startswith("t_")
-                ]
+            #     # select all original topics and a part of translated topics
+            #     translated_knn_preds = (
+            #         train_knn_preds[~train_knn_preds.topic_id.str.startswith("t_")]
+            #         .groupby("language")
+            #         .apply(
+            #             lambda x: x.sample(
+            #                 n=count_dict[x["language"].iat[0]] * times_positive_samples,
+            #                 replace=True,
+            #             )
+            #         )
+            #         .reset_index(drop=True)
+            #     )
+            #     original_knn_preds = train_knn_preds[
+            #         train_knn_preds.topic_id.str.startswith("t_")
+            #     ]
 
-                train_knn_preds = pd.concat([original_knn_preds, translated_knn_preds])
+            #     train_knn_preds = pd.concat([original_knn_preds, translated_knn_preds])
 
             new_train_supervised_df = build_new_supervised_df(
                 train_knn_preds, self.correlation_df
@@ -748,13 +748,41 @@ class DatasetUpdateCallback(TrainerCallback):
                     ~new_train_supervised_df.topics_ids.str.startswith("t_")
                     & new_train_supervised_df.target
                     == 1
-                ]
+                ].copy()
 
                 # Only original contents for original topics
                 original_supervised_df = new_train_supervised_df[
                     new_train_supervised_df.topics_ids.str.startswith("t_")
                     & new_train_supervised_df.content_ids.str.startswith("c_")
-                ]
+                ].copy()
+
+                # TODO: duplicate number of positive by using translated data
+                id_to_language = {}
+                for _, row in tqdm(self.topic_df.iterrows()):
+                    id_to_language[row.id] = row.language
+                
+                original_supervised_df["language"] = original_supervised_df["topics_ids"].apply(lambda x: id_to_language[x])
+                count_df = original_supervised_df[original_supervised_df.target == 1].groupby("language").size().reset_index(name='counts')
+
+                count_dict = {}
+                for _, row in count_df.iterrows():
+                    count_dict[row.language] = row.counts
+
+                times_positive_samples = 3
+                translated_supervised_df["language"] = translated_supervised_df["topics_ids"].apply(lambda x: id_to_language[x])
+                translated_supervised_df = (
+                    translated_supervised_df
+                    .groupby("language")
+                    .apply(
+                        lambda x: x.sample(
+                            n=count_dict[x["language"].iat[0]] * times_positive_samples,
+                            replace=True,
+                        )
+                    )
+                    .reset_index(drop=True)
+                )
+                original_supervised_df = original_supervised_df.drop(columns=["language"])
+                translated_supervised_df = translated_supervised_df.drop(columns=["language"])
 
                 new_train_supervised_df = pd.concat(
                     [translated_supervised_df, original_supervised_df]
