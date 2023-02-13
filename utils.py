@@ -2,9 +2,15 @@
 import re
 import string
 from collections import defaultdict
+from functools import partial
+from typing import Dict, List
 
 import numpy as np
+import pandas as pd
+from pandarallel import pandarallel
 from tqdm import tqdm
+
+pandarallel.initialize(nb_workers=4)
 
 
 def decontracted(phrase):
@@ -83,6 +89,67 @@ def f2_score(y_true, y_pred):
     return round(f2.mean(), 4)
 
 
+def concat_topic_texts(
+    row: pd.Series,
+    topic_title_dict: List[str],
+    parents: Dict[List[str]],
+    children: Dict[List[str]],
+    sep_token,
+):
+    text = (
+        "<|topic|>"
+        + f"<|lang_{row['language']}|>"
+        + f"<|category_{row['category']}|>"
+        + f"<|level_{row['level']}|>"
+    )
+    text += (
+        "<s_title>"
+        + row["title"]
+        + "</s_title>"
+        + "<s_description>"
+        + row["description"]
+        + "</s_description>"
+    )
+
+    context_text = "<s_parent>"
+    max_successor = 10
+    parent_id = parents.get(row["id"], [None])[0]
+
+    i = 0
+    while parent_id and i < max_successor:
+        context_text += topic_title_dict[parent_id] + sep_token
+        parent_id = parents.get(parent_id, [None])[0]
+        i += 1
+
+    context_text += "</s_parent>"
+
+    if children.get(row["id"]):
+        children_text = "<s_children>"
+        for child_topic_id in children.get(row["id"]):
+            children_text += topic_title_dict[child_topic_id] + sep_token
+        children_text = children_text[: -(len(sep_token))] + "</s_children>"
+    else:
+        children_text = ""
+
+    context_text += children_text
+    return text + context_text
+
+
+def concat_content_texts(row: pd.Series):
+    text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
+    text += (
+        "<s_title>"
+        + row["title"]
+        + "</s_title>"
+        + "<s_description>"
+        + row["description"]
+        + "</s_description>"
+        + "<s_text>"
+        + str(row["text"])
+        + "</s_text>"
+    )
+    return text
+
 
 def get_processed_text_dict(topic_df, content_df, sep_token):
     # Fillna titles
@@ -116,61 +183,20 @@ def get_processed_text_dict(topic_df, content_df, sep_token):
             children[row["parent"]].append(row["id"])
 
         topic_title_dict[row["id"]] = row["title"]
-    
+
     # get concatenated texts
-    topic_dict = {}
-    for i, (index, row) in tqdm(enumerate(topic_df.iterrows())):
-        text = (
-            "<|topic|>"
-            + f"<|lang_{row['language']}|>"
-            + f"<|category_{row['category']}|>"
-            + f"<|level_{row['level']}|>"
-        )
-        text += (
-            "<s_title>"
-            + row["title"]
-            + "</s_title>"
-            + "<s_description>"
-            + row["description"]
-            + "</s_description>"
-        )
-
-        context_text = "<s_parent>" 
-        max_successor = 10
-        parent_id = parents.get(row["id"], [None])[0]
-
-        i = 0
-        while parent_id and i < max_successor:
-            context_text += topic_title_dict[parent_id] + sep_token
-            parent_id = parents.get(parent_id, [None])[0]
-            i += 1
-
-        context_text += "</s_parent>"
-        
-        if children.get(row["id"]):
-            children_text = "<s_children>"
-            for child_topic_id in children.get(row["id"]):
-                children_text += topic_title_dict[child_topic_id] + sep_token
-            children_text = children_text[:-(len(sep_token))] + "</s_children>"
-        else:
-            children_text = ""
-        
-        context_text += children_text
-        topic_dict[row["id"]] = text + context_text
-
-    content_dict = {}
-    for i, (index, row) in tqdm(enumerate(content_df.iterrows())):
-        text = "<|content|>" + f"<|lang_{row['language']}|>" + f"<|kind_{row['kind']}|>"
-        text += (
-            "<s_title>"
-            + row["title"]
-            + "</s_title>"
-            + "<s_description>"
-            + row["description"]
-            + "</s_description>"
-            + "<s_text>" + str(row["text"]) + "</s_text>"
-        )
-        content_dict[row["id"]] = text
+    topic_df["text"] = topic_df.parallel_apply(
+        partial(
+            concat_topic_texts,
+            topic_title_dict=topic_title_dict,
+            parents=parents,
+            children=children,
+            sep_token=sep_token,
+        ),
+        axis=1,
+    )
+    topic_dict = topic_df[["id", "text"]].set_index("id")["text"].to_dict()
+    content_df["text"] = content_df.parallel_apply(concat_content_texts, axis=1)
+    content_dict = content_df[["id", "text"]].set_index("id")["text"].to_dict()
 
     return topic_dict, content_dict
-
