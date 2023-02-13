@@ -1,21 +1,18 @@
 import gc
-from typing import Dict
+from enum import Enum
+from typing import Dict, Iterable
 
 import numpy as np
 import torch
 import torch.nn.functional as F
-from sklearn.metrics import roc_auc_score, accuracy_score, f1_score
+from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
+from torch import Tensor, nn
 from torchvision.ops import sigmoid_focal_loss
 from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
 from samplers import ProportionalTwoClassesBatchSampler
-
-from typing import Iterable, Dict
-import torch.nn.functional as F
-from torch import nn, Tensor
-from enum import Enum
 
 
 class SiameseDistanceMetric(Enum):
@@ -39,9 +36,7 @@ class OnlineContrastiveLoss(nn.Module):
     :param size_average: Average by the size of the mini-batch.
     """
 
-    def __init__(
-        self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5
-    ):
+    def __init__(self, distance_metric=SiameseDistanceMetric.COSINE_DISTANCE, margin: float = 0.5):
         super(OnlineContrastiveLoss, self).__init__()
         self.margin = margin
         self.distance_metric = distance_metric
@@ -62,18 +57,6 @@ class OnlineContrastiveLoss(nn.Module):
 
 
 class CustomTrainer(Trainer):
-    def __init__(self, pos_neg_ratio=1, **kwargs):
-        super().__init__(**kwargs)
-        self.pos_neg_ratio = pos_neg_ratio
-
-    def _get_train_sampler(self):
-        pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
-        return ProportionalTwoClassesBatchSampler(
-            np.array(self.train_dataset.labels),
-            self.args.train_batch_size,
-            minority_size_in_batch=pos_bsize,
-        )
-
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         for k, v in inputs["topic_inputs"].items():
@@ -124,30 +107,22 @@ class CustomTrainer(Trainer):
         optimizer_grouped_parameters = [
             {
                 "params": [
-                    p
-                    for n, p in model.named_parameters()
-                    if not any(nd in n for nd in no_decay)
+                    p for n, p in model.named_parameters() if not any(nd in n for nd in no_decay)
                 ],
                 "weight_decay": self.args.weight_decay,
             },
             {
                 "params": [
-                    p
-                    for n, p in model.named_parameters()
-                    if any(nd in n for nd in no_decay)
+                    p for n, p in model.named_parameters() if any(nd in n for nd in no_decay)
                 ],
                 "weight_decay": 0.0,
             },
         ]
-        optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(
-            self.args
-        )
+        optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
         self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
         return self.optimizer
 
-    def prediction_step(
-        self, model, inputs, prediction_loss_only=False, ignore_keys=None
-    ):
+    def prediction_step(self, model, inputs, prediction_loss_only=False, ignore_keys=None):
         inputs = self._prepare_inputs(inputs)
         with torch.no_grad():
             with self.compute_loss_context_manager():
