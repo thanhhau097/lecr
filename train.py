@@ -194,6 +194,7 @@ def main():
             best_score=0,
             top_k=data_args.top_k_neighbors,
             use_translated=data_args.use_translated,
+            mix_translated=data_args.mix_translated,
         )
         trainer.add_callback(callback)
 

@@ -218,7 +218,10 @@ class LECRDataset(Dataset):
         return topic_texts, content_texts, labels
 
     def __len__(self):
-        return len(self.labels)
+        if self.is_training:
+            return len(self.labels)
+        else:
+            return 1
 
     def augment(self, inputs):
         probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
@@ -368,6 +371,7 @@ class DatasetUpdateCallback(TrainerCallback):
         best_score=0,
         top_k=50,
         use_translated=False,
+        mix_translated=False,
     ):
         super(DatasetUpdateCallback, self).__init__()
         self.trainer = trainer
@@ -377,6 +381,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.best_score = best_score
         self.top_k = top_k
         self.use_translated = use_translated
+        self.mix_translated = mix_translated
 
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
@@ -829,6 +834,9 @@ class DatasetUpdateCallback(TrainerCallback):
         )
         gc.collect()
         torch.cuda.empty_cache()
+
+        if self.mix_translated:
+            self.use_translated = not self.use_translated
 
 
 def build_new_supervised_df(knn_df, correlations):

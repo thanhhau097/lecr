@@ -3,6 +3,13 @@
 ### Sentence transformers
 
 #### sentence-transformers/all-MiniLM-L6-v2
+NEPTUNE:
+```
+export NEPTUNE_PROJECT="thanhhau097/lecr"
+export NEPTUNE_API_TOKEN="eyJhcGlfYWRkcmVzcyI6Imh0dHBzOi8vYXBwLm5lcHR1bmUuYWkiLCJhcGlfdXJsIjoiaHR0cHM6Ly9hcHAubmVwdHVuZS5haSIsImFwaV9rZXkiOiJlMTRjM2ExOC1lYTA5LTQwODctODMxNi1jZjEzMjdlMjkxYTgifQ=="
+```
+
+
 Both:
 ```
 CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 20 --fp16 --warmup_ratio 0.01 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name sentence-transformers/all-MiniLM-L6-v2  --model_name sentence-transformers/all-MiniLM-L6-v2 --fold 0 --dataloader_num_workers 12 --learning_rate 8e-5  --num_train_epochs 20 --per_device_train_batch_size 160 --per_device_eval_batch_size 160 --remove_unused_columns False --overwrite_output_dir --load_best_model_at_end --objective both --max_len 256 --is_sentence_transformers
@@ -59,10 +66,10 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add grandparents, grandchildren info
 - [x] Pretrained Cross Encoder: https://www.sbert.net/docs/pretrained_cross-encoders.html
 - [ ] Pretrained using translation: https://www.sbert.net/examples/training/multilingual/README.html
-- [ ] Pretrained using pair translation:
-    - [ ] Only add positive cases in training set for translated topics
-    - [ ] Only original contents for original topics
-    - [ ] Only evaluate (KNN) with original contents
+- [x] Pretrained using pair translation:
+    - [x] Only add positive cases in training set for translated topics
+    - [x] Only original contents for original topics
+    - [x] Only evaluate (KNN) with original contents
 - [x] Augmentation text data. i,e using [MASK] => not working
     ```
     probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
@@ -76,6 +83,9 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_stra
 - [x] Add parents and childs information before description of titles because of the description may be long. => not working
 - [ ] Experiment with gradient checkpointing
 - [ ] Experiment with gradient_accumulation_steps
+- [ ] Batch sampling: make pairs have same topics in the same batch
+- [ ] Embedding of last N blocks
+- [ ] Triplet loss
 
 2. Classification
 - [x] KFold XGBoost

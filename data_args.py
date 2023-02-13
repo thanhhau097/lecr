@@ -28,6 +28,9 @@ class DataArguments:
     use_translated: bool = field(
         default=False, metadata={"help": "Use translated data while training"}
     )
+    mix_translated: bool = field(
+        default=False, metadata={"help": "Mix translated data and original data while training"}
+    )
     translated_topic_path: str = field(
         default="./data/translated_topics.csv", metadata={"help": "translated topic csv path"}
     )
