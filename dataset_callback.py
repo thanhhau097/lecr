@@ -126,8 +126,7 @@ class DatasetUpdateCallback(TrainerCallback):
             collate_fn=inference_collate_fn,
         )
 
-    def on_epoch_begin(self, args, state, control, **kwargs):
-        print("On Epoch Begin")
+    def on_epoch_end(self, args, state, control, **kwargs):
         topic_embs = []
         device = "cuda" if torch.cuda.is_available() else "cpu"
         for inputs in tqdm(self.val_topic_dataloader):

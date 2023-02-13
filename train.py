@@ -74,13 +74,13 @@ def main():
     print("Reading correlation data CSV", data_args.correlation_path)
     correlation_df = pd.read_csv(data_args.correlation_path)
 
+    train_df = data_df[data_df["fold"] != fold].reset_index(drop=True)
+    val_df = data_df[data_df["fold"] == fold].reset_index(drop=True)
     if data_args.use_no_content_topics:
-        train_topic_ids = set(topic_df.id.values).difference(
-            set(data_df[data_df["fold"] == fold].topics_ids.values)
-        )
+        train_topic_ids = set(topic_df.id.values).difference(set(val_df.topics_ids.values))
     else:
-        train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
-    val_topic_ids = set(data_df[data_df["fold"] == fold].topics_ids.values)
+        train_topic_ids = set(train_df.topics_ids.values)
+    val_topic_ids = set(val_df.topics_ids.values)
 
     if data_args.use_translated:
         print("Reading translated topic data CSV", data_args.translated_topic_path)
@@ -120,7 +120,7 @@ def main():
     tokenizer = init_tokenizer(model_args.tokenizer_name)
     topic_dict, content_dict = get_processed_text_dict(topic_df, content_df, tokenizer.sep_token)
     train_dataset, collate_fn = build_dataset_and_collator(
-        supervised_df=data_df[data_df["fold"] != fold],
+        supervised_df=train_df,
         topic_df=topic_df,
         content_df=content_df,
         topic_dict=topic_dict,
@@ -135,7 +135,7 @@ def main():
     )
 
     val_dataset, _ = build_dataset_and_collator(
-        supervised_df=data_df[data_df["fold"] == fold],
+        supervised_df=val_df,
         topic_df=topic_df,
         content_df=content_df,
         topic_dict=topic_dict,
@@ -198,6 +198,7 @@ def main():
         use_triplets=model_args.objective == "triplet",
     )
     trainer.add_callback(callback)
+    callback.on_epoch_end(None, None, None)
 
     # Training
     if training_args.do_train:
