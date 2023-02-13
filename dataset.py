@@ -168,7 +168,8 @@ class LECRDataset(Dataset):
                 topic_inputs = augment(topic_inputs, self.tokenizer)
                 content_inputs = augment(content_inputs, self.tokenizer)
 
-            return topic_inputs, content_inputs, topic_inputs, label
+            # return topic_inputs, content_inputs, topic_inputs, label
+            return topic_inputs, content_inputs, label
         elif self.objective == "classification":
             combined_inputs = self.tokenizer.encode_plus(
                 topic_text,
@@ -317,12 +318,13 @@ def truncate_inputs(inputs: Dict[str, torch.Tensor]):
 
 def collate_fn(batch):
     batch = default_collate(batch)
-    topic_inputs, content_inputs, combined_inputs, labels = batch
+    # topic_inputs, content_inputs, combined_inputs, labels = batch
+    topic_inputs, content_inputs, labels = batch
 
     return {
         "topic_inputs": truncate_inputs(topic_inputs),
         "content_inputs": truncate_inputs(content_inputs),
-        "combined_inputs": truncate_inputs(combined_inputs),
+        # "combined_inputs": truncate_inputs(combined_inputs),
         "labels": labels,
     }
 

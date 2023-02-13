@@ -13,7 +13,8 @@ class MeanPooling(nn.Module):
 
     def forward(self, outputs, attention_mask):
         if self.is_sentence_transformers:
-            token_embeddings = outputs[0]  # First element of outputs contains all token embeddings
+            # token_embeddings = outputs[0]  # First element of outputs contains all token embeddings
+            token_embeddings = torch.stack(outputs.hidden_states[-4:]).mean(dim=0)
             input_mask_expanded = (
                 attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
             )
@@ -32,6 +33,7 @@ class MeanPooling(nn.Module):
             sum_mask = input_mask_expanded.sum(1)
             sum_mask = torch.clamp(sum_mask, min=1e-9)
             mean_embeddings = sum_embeddings / sum_mask
+            mean_embeddings = F.normalize(mean_embeddings, p=2, dim=1)
             return mean_embeddings
 
 
