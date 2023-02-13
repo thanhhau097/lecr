@@ -92,8 +92,8 @@ def f2_score(y_true, y_pred):
 def concat_topic_texts(
     row: pd.Series,
     topic_title_dict: List[str],
-    parents: Dict[List[str]],
-    children: Dict[List[str]],
+    parents: Dict[str, List[str]],
+    children: Dict[str, List[str]],
     sep_token,
 ):
     text = (
@@ -163,12 +163,12 @@ def get_processed_text_dict(topic_df, content_df, sep_token):
 
     # clean text
     print("Cleaning text data for topics")
-    topic_df["title"] = topic_df["title"].apply(clean_text)
-    topic_df["description"] = topic_df["description"].apply(clean_text)
+    topic_df["title"] = topic_df["title"].parallel_apply(clean_text)
+    topic_df["description"] = topic_df["description"].parallel_apply(clean_text)
 
     print("Cleaning text data for content")
-    content_df["title"] = content_df["title"].apply(clean_text)
-    content_df["description"] = content_df["description"].apply(clean_text)
+    content_df["title"] = content_df["title"].parallel_apply(clean_text)
+    content_df["description"] = content_df["description"].parallel_apply(clean_text)
     # content_df["text"] = content_df["text"].apply(clean_text)
 
     # parent and children information

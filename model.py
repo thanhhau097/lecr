@@ -1,8 +1,7 @@
 import torch
-from torch import nn
-from transformers import AutoModel, AutoConfig
-from torch.nn.functional import cosine_similarity
 import torch.nn.functional as F
+from torch import nn
+from transformers import AutoConfig, AutoModel
 
 from dataset import init_tokenizer
 
@@ -14,9 +13,7 @@ class MeanPooling(nn.Module):
 
     def forward(self, outputs, attention_mask):
         if self.is_sentence_transformers:
-            token_embeddings = outputs[
-                0
-            ]  # First element of outputs contains all token embeddings
+            token_embeddings = outputs[0]  # First element of outputs contains all token embeddings
             input_mask_expanded = (
                 attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
             )
@@ -64,21 +61,27 @@ class Model(nn.Module):
 
     def feature(self, inputs):
         outputs = self.model(**inputs)
+
         feature = self.pool(outputs, inputs["attention_mask"])
         return feature
 
-    def forward(self, topic_inputs, content_inputs, combined_inputs, labels=None):
+    def forward(
+        self,
+        topic_inputs,
+        content_inputs,
+        combined_inputs=None,
+        neg_content_inputs=None,
+        labels=None,
+    ):
         if self.objective == "classification":
             combined_features = self.feature(combined_inputs)
             return self.fc(combined_features)
-        elif self.objective == "siamese":
-            topic_features = self.feature(topic_inputs)
-            content_features = self.feature(content_inputs)
+
+        topic_features = self.feature(topic_inputs)
+        content_features = self.feature(content_inputs)
+
+        if self.objective == "siamese":
             return topic_features, content_features
-        elif self.objective == "both":
-            topic_features = self.feature(topic_inputs)
-            content_features = self.feature(content_inputs)
-            combined_features = self.feature(combined_inputs)
-            return self.fc(combined_features), (topic_features, content_features)
-        else:
-            raise ValueError("objective should be classification/siamese/both")
+
+        neg_content_features = self.feature(neg_content_inputs)
+        return topic_features, content_features, neg_content_features
