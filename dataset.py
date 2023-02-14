@@ -327,7 +327,7 @@ def collate_fn(batch):
     return {
         "topic_inputs": truncate_inputs(topic_inputs),
         "content_inputs": truncate_inputs(content_inputs),
-        "mnrl_labels": mnrl_labels,
+        # "mnrl_labels": mnrl_labels,
         "labels": labels,
     }
 
