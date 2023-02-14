@@ -7,7 +7,7 @@ from torch import Tensor
 from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
-from losses import OnlineContrastiveLoss, TripletLoss
+from losses import MultipleNegativesRankingLoss, OnlineContrastiveLoss, TripletLoss
 from model import Model
 
 
@@ -18,18 +18,24 @@ class CustomTrainer(Trainer):
         device = "cuda" if torch.cuda.is_available() else "cpu"
         labels = inputs.get("labels")
         for k, _ in inputs["topic_inputs"].items():
-            inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
+            inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device, non_blocking=True)
         for k, _ in inputs["content_inputs"].items():
-            inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
+            inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device, non_blocking=True)
 
         if model.objective == "siamese":
             outputs = model(inputs["topic_inputs"], inputs["content_inputs"])
-            loss_fct = OnlineContrastiveLoss()
-            loss = loss_fct(outputs, labels.float())
+            if "mnrl_labels" in inputs:
+                loss_fct = MultipleNegativesRankingLoss(scale=20.0)
+                loss = loss_fct(outputs, labels)
+            else:
+                loss_fct = OnlineContrastiveLoss()
+                loss = loss_fct(outputs, labels.float())
 
         elif model.objective == "triplet":
             for k, _ in inputs["neg_content_inputs"].items():
-                inputs["neg_content_inputs"][k] = inputs["neg_content_inputs"][k].to(device)
+                inputs["neg_content_inputs"][k] = inputs["neg_content_inputs"][k].to(
+                    device, non_blocking=True
+                )
             outputs = model(
                 inputs["topic_inputs"],
                 inputs["content_inputs"],

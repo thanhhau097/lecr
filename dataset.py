@@ -1,6 +1,7 @@
 from collections import defaultdict
 from typing import Dict
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn.functional as F
@@ -168,8 +169,8 @@ class LECRDataset(Dataset):
                 topic_inputs = augment(topic_inputs, self.tokenizer)
                 content_inputs = augment(content_inputs, self.tokenizer)
 
-            # return topic_inputs, content_inputs, topic_inputs, label
-            return topic_inputs, content_inputs, label
+            topic_id = self.supervised_df.topics_ids.values[idx]
+            return topic_inputs, content_inputs, topic_id, label
         elif self.objective == "classification":
             combined_inputs = self.tokenizer.encode_plus(
                 topic_text,
@@ -318,13 +319,15 @@ def truncate_inputs(inputs: Dict[str, torch.Tensor]):
 
 def collate_fn(batch):
     batch = default_collate(batch)
-    # topic_inputs, content_inputs, combined_inputs, labels = batch
-    topic_inputs, content_inputs, labels = batch
+    topic_inputs, content_inputs, topic_ids, labels = batch
+    # create labels for MultipleNegativesRankingLoss
+    topic_ids_to_labels = {topic_id: label for label, topic_id in enumerate(np.unique(topic_ids))}
+    mnrl_labels = torch.from_numpy(np.vectorize(topic_ids_to_labels.get)(topic_ids))
 
     return {
         "topic_inputs": truncate_inputs(topic_inputs),
         "content_inputs": truncate_inputs(content_inputs),
-        # "combined_inputs": truncate_inputs(combined_inputs),
+        "mnrl_labels": mnrl_labels,
         "labels": labels,
     }
 
