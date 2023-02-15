@@ -520,7 +520,7 @@ class DatasetUpdateCallback(TrainerCallback):
         gc.collect()
         torch.cuda.empty_cache()
 
-        if hasattr(self.trainer.callback.handler.train_dataloader.sampler, "topics_ids"):
+        if hasattr(self.trainer.callback_handler.train_dataloader.sampler, "topics_ids"):
             topics_ids, labels = (
                 self.trainer.train_dataset.supervised_df["topics_ids"].values,
                 self.trainer.train_dataset.supervised_df["target"].values,
