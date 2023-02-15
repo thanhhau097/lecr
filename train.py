@@ -198,7 +198,6 @@ def main():
         use_triplets=model_args.objective == "triplet",
     )
     trainer.add_callback(callback)
-    callback.on_epoch_end(None, None, None)
 
     # Training
     if training_args.do_train:

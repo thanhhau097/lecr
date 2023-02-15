@@ -9,9 +9,18 @@ from transformers.trainer_pt_utils import nested_detach
 
 from losses import MultipleNegativesRankingLoss, OnlineContrastiveLoss, TripletLoss
 from model import Model
+from samplers import TopicSampler
 
 
 class CustomTrainer(Trainer):
+    def _get_train_sampler(self):
+        return TopicSampler(
+            self.train_dataset.supervised_df.topics_ids.values,
+            self.train_dataset.supervised_df.target.values,
+            self.args.train_batch_size,
+            per_topic_batch_size=24,
+        )
+
     def compute_loss(
         self, model: Model, inputs: Dict[str, Dict[str, Tensor]], return_outputs=False
     ):
