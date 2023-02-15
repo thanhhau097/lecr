@@ -76,6 +76,13 @@ class ProportionalTwoClassesBatchSampler(Sampler):
 class TopicSampler(Sampler):
     def __init__(self, topics_ids, labels, batch_size, per_topic_batch_size=32):
 
+        self.topics_ids = topics_ids
+        self.labels = labels
+        self.batch_size = batch_size
+        self.per_topic_batch_size = per_topic_batch_size
+        self.initialize(topics_ids, labels)
+
+    def initialize(self, topics_ids, labels):
         self.topics_dict = {}
         topics2indices = {}
         for i, topic_id in enumerate(topics_ids):
@@ -88,10 +95,12 @@ class TopicSampler(Sampler):
             self.topics_dict[topic_id] = (np.array(indices), labels[indices])
 
         self.topics_ids_list = np.unique(topics_ids)
-        self.num_topics_per_batch = batch_size // per_topic_batch_size
-        self.per_topic_batch_size = per_topic_batch_size
-        self.batch_size = batch_size
-        self._dataset_length = len(self.topics_ids_list) * batch_size
+        self.num_topics_per_batch = self.batch_size // self.per_topic_batch_size
+        self.per_topic_batch_size = self.per_topic_batch_size
+        self.batch_size = self.batch_size
+        self._dataset_length = (
+            len(self.topics_ids_list) // self.num_topics_per_batch + 1
+        ) * self.batch_size
 
     def __len__(self):
         return self._dataset_length
