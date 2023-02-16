@@ -459,7 +459,10 @@ class DatasetUpdateCallback(TrainerCallback):
             collate_fn=inference_collate_fn,
         )
 
-    def on_epoch_begin(self, args, state, control, **kwargs):
+    def on_train_begin(self, args, state, control, **kwargs):
+        self.on_epoch_end(args, state, control, **kwargs)
+
+    def on_epoch_end(self, args, state, control, **kwargs):
         print("On Epoch Begin")
         topic_embs = []
         device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -837,6 +840,13 @@ class DatasetUpdateCallback(TrainerCallback):
 
         if self.mix_translated:
             self.use_translated = not self.use_translated
+
+        if hasattr(self.trainer.callback_handler.train_dataloader.sampler, "topics_ids"):
+            topics_ids, labels = (
+                self.trainer.train_dataset.supervised_df["topics_ids"].values,
+                self.trainer.train_dataset.supervised_df["target"].values,
+            )
+            self.trainer.callback_handler.train_dataloader.sampler.initialize(topics_ids, labels)
 
 
 def build_new_supervised_df(knn_df, correlations):
