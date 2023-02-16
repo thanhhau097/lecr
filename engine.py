@@ -10,7 +10,7 @@ from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
-from samplers import ProportionalTwoClassesBatchSampler
+from samplers import ProportionalTwoClassesBatchSampler, TopicSampler
 
 from typing import Iterable, Dict
 import torch.nn.functional as F
@@ -66,12 +66,20 @@ class CustomTrainer(Trainer):
         super().__init__(**kwargs)
         self.pos_neg_ratio = pos_neg_ratio
 
+    # def _get_train_sampler(self):
+    #     pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
+    #     return ProportionalTwoClassesBatchSampler(
+    #         np.array(self.train_dataset.labels),
+    #         self.args.train_batch_size,
+    #         minority_size_in_batch=pos_bsize,
+    #     )
+
     def _get_train_sampler(self):
-        pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
-        return ProportionalTwoClassesBatchSampler(
-            np.array(self.train_dataset.labels),
+        return TopicSampler(
+            self.train_dataset.supervised_df.topics_ids.values,
+            self.train_dataset.supervised_df.target.values,
             self.args.train_batch_size,
-            minority_size_in_batch=pos_bsize,
+            per_topic_batch_size=24,
         )
 
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
