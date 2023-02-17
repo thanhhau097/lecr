@@ -43,6 +43,7 @@ class DatasetUpdateCallback(TrainerCallback):
         top_k=50,
         use_translated=False,
         use_triplets=False,
+        reduce_negatives=False,
     ):
         super(DatasetUpdateCallback, self).__init__()
         self.trainer = trainer
@@ -53,6 +54,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.top_k = top_k
         self.use_translated = use_translated
         self.use_triplets = use_triplets
+        self.reduce_negatives = reduce_negatives
 
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
@@ -126,8 +128,8 @@ class DatasetUpdateCallback(TrainerCallback):
             collate_fn=inference_collate_fn,
         )
 
-    def on_train_begin(self, args, state, control, **kwargs):
-        self.on_epoch_end(args, state, control, **kwargs)
+    # def on_train_begin(self, args, state, control, **kwargs):
+    #     self.on_epoch_end(args, state, control, **kwargs)
 
     def on_epoch_end(self, args, state, control, **kwargs):
         topic_embs = []
@@ -410,7 +412,7 @@ class DatasetUpdateCallback(TrainerCallback):
                 new_train_supervised_df = build_triplet_df(train_knn_preds, self.correlation_df)
             else:
                 new_train_supervised_df = build_new_supervised_df(
-                    train_knn_preds, self.correlation_df
+                    train_knn_preds, self.correlation_df, self.reduce_negatives
                 )
 
             if self.use_translated:

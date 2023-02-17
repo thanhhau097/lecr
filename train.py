@@ -196,8 +196,10 @@ def main():
         top_k=data_args.top_k_neighbors,
         use_translated=data_args.use_translated,
         use_triplets=model_args.objective == "triplet",
+        reduce_negatives=True,
     )
     trainer.add_callback(callback)
+    callback.on_epoch_end(None, None, None)
 
     # Training
     if training_args.do_train:

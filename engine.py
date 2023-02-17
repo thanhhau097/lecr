@@ -13,13 +13,19 @@ from samplers import TopicSampler
 
 
 class CustomTrainer(Trainer):
+    def __init__(self, use_topic_sampler=False, **kwargs):
+        super().__init__(**kwargs)
+        self.use_topic_sampler = use_topic_sampler
+
     def _get_train_sampler(self):
-        return TopicSampler(
-            self.train_dataset.supervised_df.topics_ids.values,
-            self.train_dataset.supervised_df.target.values,
-            self.args.train_batch_size,
-            per_topic_batch_size=24,
-        )
+        if self.use_topic_sampler:
+            return TopicSampler(
+                self.train_dataset.supervised_df.topics_ids.values,
+                self.train_dataset.supervised_df.target.values,
+                self.args.train_batch_size,
+                per_topic_batch_size=24,
+            )
+        return super()._get_train_sampler()
 
     def compute_loss(
         self, model: Model, inputs: Dict[str, Dict[str, Tensor]], return_outputs=False

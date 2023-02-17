@@ -5,7 +5,7 @@ import pandas as pd
 from tqdm import tqdm
 
 
-def build_new_supervised_df(knn_df, correlations):
+def build_new_supervised_df(knn_df, correlations, reduce_negatives=False):
     # Create lists for training
     topics_ids = []
     content_ids = []
@@ -43,6 +43,15 @@ def build_new_supervised_df(knn_df, correlations):
             "target": [item[2] for item in mapping if item[1]],
         }
     )
+    if reduce_negatives:
+        num_negatives = new_df[new_df["target"] == 0].shape[0]
+        num_negatives = min(num_negatives, 500000)
+        new_df = (
+            new_df[new_df["target"] == 1]
+            .append(new_df[new_df["target"] == 0].sample(num_negatives))
+            .reset_index(drop=True)
+        )
+        print(f"Removed negative pairs, current dataset length: {len(new_df)}")
     # Release memory
     del topics_ids, content_ids
     gc.collect()
