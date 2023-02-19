@@ -460,6 +460,7 @@ class DatasetUpdateCallback(TrainerCallback):
         )
 
     def on_epoch_begin(self, args, state, control, **kwargs):
+        self.trainer.model.eval()
         print("On Epoch Begin")
         topic_embs = []
         device = "cuda" if torch.cuda.is_available() else "cpu"
