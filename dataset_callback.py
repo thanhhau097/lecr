@@ -131,7 +131,9 @@ class DatasetUpdateCallback(TrainerCallback):
     # def on_train_begin(self, args, state, control, **kwargs):
     #     self.on_epoch_end(args, state, control, **kwargs)
 
+    @torch.no_grad()
     def on_epoch_end(self, args, state, control, **kwargs):
+        self.trainer.model.eval()
         topic_embs = []
         device = "cuda" if torch.cuda.is_available() else "cpu"
         for inputs in tqdm(self.val_topic_dataloader):
@@ -521,6 +523,7 @@ class DatasetUpdateCallback(TrainerCallback):
         )
         gc.collect()
         torch.cuda.empty_cache()
+        self.trainer.model.train()
 
         # topics_ids, labels = (
         #     self.trainer.train_dataset.supervised_df["topics_ids"].values,
