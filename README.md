@@ -2,6 +2,21 @@
 
 ### Sentence transformers
 
+1.1 Train with margin = 0.5, sampler 1:1
+1.2 Finetune with margin = 0.5, no sampler
+2.1 Finetune with margin = 0.2, sampler 1:1
+2.2 Finetune with margin = 0.2, no sampler
+
+LECR sampler 1:1, gradient accumulation = 4, lr = 2e-5, margin = 0.2 => tăng 3% so với mặc định
+
+
+### Models
+https://huggingface.co/sentence-transformers/all-roberta-large-v1
+https://huggingface.co/sentence-transformers/sentence-t5-large
+https://huggingface.co/sentence-transformers/xlm-r-large-en-ko-nli-ststb/tree/main
+
+sentence-transformers/xlm-r-large-en-ko-nli-ststb at main
+
 #### sentence-transformers/all-MiniLM-L6-v2
 NEPTUNE:
 ```
