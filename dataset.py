@@ -459,7 +459,10 @@ class DatasetUpdateCallback(TrainerCallback):
             collate_fn=inference_collate_fn,
         )
 
-    def on_epoch_begin(self, args, state, control, **kwargs):
+    def on_train_begin(self, args, state, control, **kwargs):
+        self.on_epoch_end(args, state, control, **kwargs)
+
+    def on_epoch_end(self, args, state, control, **kwargs):
         self.trainer.model.eval()
         print("On Epoch Begin")
         topic_embs = []
@@ -644,7 +647,7 @@ class DatasetUpdateCallback(TrainerCallback):
             print("Building new validation supervised df")
             new_val_supervised_df = build_new_supervised_df(
                 knn_preds, self.correlation_df
-            )[["topics_ids", "content_ids", "target"]]
+            )[["topics_ids", "content_ids", "target"]].sort_values(["topics_ids", "content_ids"])
             if score == self.best_score:  # only save for the best checkpoint
                 print("saving new_val_supervised_df to data/ folder")
                 new_val_supervised_df.to_csv("data/new_val_supervised_df.csv")
@@ -792,7 +795,7 @@ class DatasetUpdateCallback(TrainerCallback):
 
                 new_train_supervised_df = pd.concat(
                     [translated_supervised_df, original_supervised_df]
-                )[["topics_ids", "content_ids", "target"]]
+                )[["topics_ids", "content_ids", "target"]].sort_values(["topics_ids", "content_ids"])
 
             if score == self.best_score:  # only save for the best checkpoint
                 print("saving new_train_supervised_df to data/ folder")
