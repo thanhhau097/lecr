@@ -386,6 +386,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
 
+        print("Callback on local_rank =", self.trainer.local_rank)
         train_topic_texts = [
             topic_dict[topic_id]
             for topic_id in self.topic_df.id.values
@@ -482,8 +483,9 @@ class DatasetUpdateCallback(TrainerCallback):
             content_embs.extend(out.cpu().detach().numpy())
 
         # Transfer predictions to gpu
-        topic_embs_gpu = cp.array(topic_embs)
-        content_embs_gpu = cp.array(content_embs)
+        with cp.cuda.Device(self.trainer.local_rank):
+            topic_embs_gpu = cp.array(topic_embs)
+            content_embs_gpu = cp.array(content_embs)
 
         # Release memory
         torch.cuda.empty_cache()
@@ -662,8 +664,9 @@ class DatasetUpdateCallback(TrainerCallback):
                     inputs[k] = inputs[k].to(device)
                 out = self.trainer.model.feature(inputs)
                 train_topic_embs.extend(out.cpu().detach().numpy())
-
-            train_topic_embs_gpu = cp.array(train_topic_embs)
+            
+            with cp.cuda.Device(self.trainer.local_rank):
+                train_topic_embs_gpu = cp.array(train_topic_embs)
 
             train_indices = neighbors_model.kneighbors(
                 train_topic_embs_gpu, return_distance=False
