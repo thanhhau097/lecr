@@ -386,7 +386,6 @@ class DatasetUpdateCallback(TrainerCallback):
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
 
-        print("Callback on local_rank =", self.trainer.local_rank)
         train_topic_texts = [
             topic_dict[topic_id]
             for topic_id in self.topic_df.id.values
@@ -464,6 +463,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.on_epoch_end(args, state, control, **kwargs)
 
     def on_epoch_end(self, args, state, control, **kwargs):
+        print("Callback on local_rank =", args.local_rank)
         self.trainer.model.eval()
         print("On Epoch Begin")
         topic_embs = []
@@ -483,7 +483,7 @@ class DatasetUpdateCallback(TrainerCallback):
             content_embs.extend(out.cpu().detach().numpy())
 
         # Transfer predictions to gpu
-        with cp.cuda.Device(self.trainer.local_rank):
+        with cp.cuda.Device(args):
             topic_embs_gpu = cp.array(topic_embs)
             content_embs_gpu = cp.array(content_embs)
 
@@ -665,7 +665,7 @@ class DatasetUpdateCallback(TrainerCallback):
                 out = self.trainer.model.feature(inputs)
                 train_topic_embs.extend(out.cpu().detach().numpy())
             
-            with cp.cuda.Device(self.trainer.local_rank):
+            with cp.cuda.Device(args.local_rank):
                 train_topic_embs_gpu = cp.array(train_topic_embs)
 
             train_indices = neighbors_model.kneighbors(
