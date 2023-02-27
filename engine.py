@@ -87,6 +87,11 @@ class CustomTrainer(Trainer):
         )
 
         labels = inputs.get("labels")
+        try:
+            model.objective = model.objective
+        except:
+            model.objective = model.module.objective
+
         if model.objective == "classification":
             # loss_fct = sigmoid_focal_loss
             loss_fct = F.binary_cross_entropy_with_logits
