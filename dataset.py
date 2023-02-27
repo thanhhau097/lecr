@@ -483,7 +483,7 @@ class DatasetUpdateCallback(TrainerCallback):
             content_embs.extend(out.cpu().detach().numpy())
 
         # Transfer predictions to gpu
-        with cp.cuda.Device(args):
+        with cp.cuda.Device(args.local_rank):
             topic_embs_gpu = cp.array(topic_embs)
             content_embs_gpu = cp.array(content_embs)
 
