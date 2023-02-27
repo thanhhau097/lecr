@@ -432,7 +432,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.train_topic_dataloader = DataLoader(
             train_topic_dataset,
             num_workers=16,
-            batch_size=64,
+            batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
         )
@@ -443,7 +443,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.val_topic_dataloader = DataLoader(
             val_topic_dataset,
             num_workers=16,
-            batch_size=64,
+            batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
         )
@@ -454,7 +454,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.content_dataloader = DataLoader(
             content_dataset,
             num_workers=16,
-            batch_size=64,
+            batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
         )
@@ -468,19 +468,21 @@ class DatasetUpdateCallback(TrainerCallback):
         print("On Epoch Begin")
         topic_embs = []
         device = "cuda" if torch.cuda.is_available() else "cpu"
-        for inputs in tqdm(self.val_topic_dataloader):
-            for k, v in inputs.items():
-                inputs[k] = inputs[k].to(device)
-            out = self.trainer.model.feature(inputs)
-            topic_embs.extend(out.cpu().detach().numpy())
+        
+        with torch.no_grad():
+            for inputs in tqdm(self.val_topic_dataloader):
+                for k, v in inputs.items():
+                    inputs[k] = inputs[k].to(device)
+                out = self.trainer.model.feature(inputs)
+                topic_embs.extend(out.cpu().detach().numpy())
 
-        content_embs = []
-        # TODO: only use original content embeddings to avoid translation confusing
-        for inputs in tqdm(self.content_dataloader):
-            for k, v in inputs.items():
-                inputs[k] = inputs[k].to(device)
-            out = self.trainer.model.feature(inputs)
-            content_embs.extend(out.cpu().detach().numpy())
+            content_embs = []
+            # TODO: only use original content embeddings to avoid translation confusing
+            for inputs in tqdm(self.content_dataloader):
+                for k, v in inputs.items():
+                    inputs[k] = inputs[k].to(device)
+                out = self.trainer.model.feature(inputs)
+                content_embs.extend(out.cpu().detach().numpy())
 
         # Transfer predictions to gpu
         with cp.cuda.Device(args.local_rank):
@@ -659,12 +661,13 @@ class DatasetUpdateCallback(TrainerCallback):
             print("Generating embedding for train topics")
             train_topic_embs = []
 
-            for inputs in tqdm(self.train_topic_dataloader):
-                for k, v in inputs.items():
-                    inputs[k] = inputs[k].to(device)
-                out = self.trainer.model.feature(inputs)
-                train_topic_embs.extend(out.cpu().detach().numpy())
-            
+            with torch.no_grad():
+                for inputs in tqdm(self.train_topic_dataloader):
+                    for k, v in inputs.items():
+                        inputs[k] = inputs[k].to(device)
+                    out = self.trainer.model.feature(inputs)
+                    train_topic_embs.extend(out.cpu().detach().numpy())
+
             with cp.cuda.Device(args.local_rank):
                 train_topic_embs_gpu = cp.array(train_topic_embs)
 
