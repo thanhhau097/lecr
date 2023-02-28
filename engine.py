@@ -75,13 +75,13 @@ class CustomTrainer(Trainer):
         )
 
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        for k, v in inputs["topic_inputs"].items():
-            inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
-        for k, v in inputs["content_inputs"].items():
-            inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
-        for k, v in inputs["combined_inputs"].items():
-            inputs["combined_inputs"][k] = inputs["combined_inputs"][k].to(device)
+        # device = "cuda" if torch.cuda.is_available() else "cpu"
+        # for k, v in inputs["topic_inputs"].items():
+        #     inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
+        # for k, v in inputs["content_inputs"].items():
+        #     inputs["content_inputs"][k] = inputs["content_inputs"][k].to(device)
+        # for k, v in inputs["combined_inputs"].items():
+        #     inputs["combined_inputs"][k] = inputs["combined_inputs"][k].to(device)
         outputs = model(
             inputs["topic_inputs"], inputs["content_inputs"], inputs["combined_inputs"]
         )

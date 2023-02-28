@@ -467,7 +467,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.trainer.model.eval()
         print("On Epoch Begin")
         topic_embs = []
-        device = "cuda" if torch.cuda.is_available() else "cpu"
+        device = f"cuda:{args.local_rank}" if torch.cuda.is_available() else "cpu"
         
         with torch.no_grad():
             for inputs in tqdm(self.val_topic_dataloader):
