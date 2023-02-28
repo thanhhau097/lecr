@@ -19,6 +19,8 @@ class ProportionalTwoClassesBatchSampler(Sampler):
         labels: np.ndarray,
         batch_size: int,
         minority_size_in_batch: int,
+        world_size: int,
+        local_rank: int,
         majority_priority=True,
     ):
         super().__init__(labels)
@@ -28,9 +30,11 @@ class ProportionalTwoClassesBatchSampler(Sampler):
         self.priority = majority_priority
         self._num_batches = (labels == 0).sum() // (batch_size - minority_size_in_batch)
         self._num_samples = (len(self.labels) // self.batch_size + 1) * self.batch_size
+        self.world_size = world_size
+        self.local_rank = local_rank
 
     def __len__(self):
-        return self._num_samples
+        return self._num_samples // self.world_size
 
     def __iter__(self):
         if self.minority_size_in_batch > self.batch_size:
@@ -43,9 +47,10 @@ class ProportionalTwoClassesBatchSampler(Sampler):
         # y_indices[0]: minority
         # y_indices[1]: majority
         # create num_batch pairs
-
-        y_indices[0] = np.random.permutation(y_indices[0])
-        y_indices[1] = np.random.permutation(y_indices[1])
+        minor_per_device = len(y_indices[0])//self.world_size
+        major_per_device = len(y_indices[1])//self.world_size
+        y_indices[0] = np.random.permutation(y_indices[0][self.local_rank*minor_per_device : (self.local_rank + 1)*minor_per_device])
+        y_indices[1] = np.random.permutation(y_indices[1][self.local_rank*major_per_device : (self.local_rank + 1)*major_per_device])
 
         minority = np.split(y_indices[0][:(len(y_indices[0]) // self.minority_size_in_batch) * self.minority_size_in_batch], len(y_indices[0]) // self.minority_size_in_batch)
         minority = minority * (self._num_batches // len(minority) + 1)
@@ -60,4 +65,4 @@ class ProportionalTwoClassesBatchSampler(Sampler):
 
         indices = np.concatenate([np.random.permutation(np.concatenate([a, b])) for a, b in zip(minority, majority)]).tolist()
 
-        return iter(indices[: self._num_samples])
+        return iter(indices[: self._num_samples  // self.world_size])

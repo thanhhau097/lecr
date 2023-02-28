@@ -72,6 +72,8 @@ class CustomTrainer(Trainer):
             np.array(self.train_dataset.labels),
             self.args.train_batch_size,
             minority_size_in_batch=pos_bsize,
+            world_size=self.args.world_size,
+            local_rank=self.args.local_rank,
         )
 
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
