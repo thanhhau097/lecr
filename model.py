@@ -45,8 +45,10 @@ class Model(nn.Module):
         model_name="xlm-roberta-base",
         objective="classification",
         is_sentence_transformers=False,
+        local_rank=-1,
     ):
         super(Model, self).__init__()
+        self.local_rank = local_rank
         self.config = AutoConfig.from_pretrained(model_name, output_hidden_states=True)
         self.config.hidden_dropout = 0.0
         self.config.hidden_dropout_prob = 0.0

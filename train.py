@@ -25,6 +25,8 @@ logger = logging.getLogger(__name__)
 def main():
     parser = HfArgumentParser((DataArguments, ModelArguments, TrainingArguments))
     data_args, model_args, training_args = parser.parse_args_into_dataclasses()
+    torch.cuda.set_device(training_args.local_rank)
+    torch.cuda.empty_cache()
 
     # Detecting last checkpoint.
     last_checkpoint = None
@@ -141,6 +143,7 @@ def main():
         model_name=model_args.model_name,
         objective=model_args.objective,
         is_sentence_transformers=model_args.is_sentence_transformers,
+        local_rank=training_args.local_rank,
     )
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
@@ -155,7 +158,7 @@ def main():
                 {"weight": checkpoint["fc.weight"], "bias": checkpoint["fc.bias"]}
             )
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
+    device = f"cuda:{training_args.local_rank}" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
 
     print("Start training...")
