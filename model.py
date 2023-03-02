@@ -1,8 +1,8 @@
 import torch
-from torch import nn
-from transformers import AutoModel, AutoConfig
-from torch.nn.functional import cosine_similarity
 import torch.nn.functional as F
+from torch import nn
+from torch.nn.functional import cosine_similarity
+from transformers import AutoConfig, AutoModel
 
 from dataset import init_tokenizer
 
@@ -14,9 +14,7 @@ class MeanPooling(nn.Module):
 
     def forward(self, outputs, attention_mask):
         if self.is_sentence_transformers:
-            token_embeddings = outputs[
-                0
-            ]  # First element of outputs contains all token embeddings
+            token_embeddings = outputs[0]  # First element of outputs contains all token embeddings
             input_mask_expanded = (
                 attention_mask.unsqueeze(-1).expand(token_embeddings.size()).float()
             )
@@ -84,3 +82,46 @@ class Model(nn.Module):
             return self.fc(combined_features), (topic_features, content_features)
         else:
             raise ValueError("objective should be classification/siamese/both")
+
+
+class Scorer(nn.Module):
+    def __init__(
+        self,
+        d_model,
+        tokenizer_name="xlm-roberta-base",
+        model_name="xlm-roberta-base",
+        objective="classification",
+        is_sentence_transformers=False,
+    ):
+        super(Scorer, self).__init__()
+
+        self.query_encoder = Model(tokenizer_name, model_name, objective, is_sentence_transformers)
+
+        self.scorer = nn.Sequential(
+            nn.Linear(d_model * 2 + 1, d_model),
+            nn.LayerNorm(d_model),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(d_model, d_model // 2),
+            nn.LayerNorm(d_model // 2),
+            nn.ReLU(),
+            nn.Linear(d_model // 2, 1),
+        )
+
+    def forward(self, content_embs, topic_inputs, labels=None):
+        topic_embs = F.normalize(self.query_encoder.feature(topic_inputs), dim=-1)
+        content_embs = F.normalize(content_embs, dim=-1)
+
+        scores = torch.matmul(content_embs, topic_embs.unsqueeze(-1))
+        topic_embs = topic_embs[:, None].expand_as(content_embs)
+        scores = torch.cat([scores, content_embs, topic_embs], dim=-1)
+        scores = self.scorer(scores)
+        scores = scores.squeeze(-1)
+        return scores
+
+        # attn_output = self.multihead_attn(
+        #     content_embs, topic_embs.unsqueeze(1), topic_embs.unsqueeze(1)
+        # )[0]
+        # attn_output = self.scorer(attn_output)
+        # attn_output = attn_output.squeeze(-1)
+        # return attn_output

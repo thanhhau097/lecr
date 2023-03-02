@@ -1,18 +1,17 @@
-from collections import defaultdict
 import gc
+from collections import defaultdict
 
 import cupy as cp
-from cuml.metrics import pairwise_distances
-from cuml.neighbors import NearestNeighbors
 import pandas as pd
 import torch
 import torch.nn.functional as F
-from torch.utils.data import Dataset, default_collate, DataLoader
+from cuml.metrics import pairwise_distances
+from cuml.neighbors import NearestNeighbors
+from torch.utils.data import DataLoader, Dataset, default_collate
 from tqdm import tqdm
 from transformers import AutoTokenizer, TrainerCallback
 
 from utils import clean_text, f2_score, get_pos_score
-
 
 LANGUAGE_TOKENS = [
     "<|lang_pnb|>",
@@ -140,7 +139,7 @@ class LECRDataset(Dataset):
 
     def process_csv(self):
         # get text pairs
-        topic_ids = self.supervised_df.topics_ids.values
+        topic_ids = self.supervised_df.topic_id.values
         content_ids = self.supervised_df.content_ids.values
         labels = list(self.supervised_df.target.values)
 
@@ -154,7 +153,9 @@ class LECRDataset(Dataset):
             content_texts.append(self.content_dict[content_id])
 
         set_topic_ids = set(topic_ids)
-        use_all_pairs = False  # use all pair, no need to be in the intersection of content_ids of topic ids
+        use_all_pairs = (
+            False  # use all pair, no need to be in the intersection of content_ids of topic ids
+        )
         if self.use_content_pair:
             # todo: create content pairs from each topic
             content_to_topic = defaultdict(lambda: [])
@@ -178,10 +179,7 @@ class LECRDataset(Dataset):
                 if use_all_pairs:
                     for idx1 in range(len(content_list) - 1):
                         for idx2 in range(idx1 + 1, len(content_list)):
-                            if (
-                                content_list[idx1],
-                                content_list[idx2],
-                            ) not in pairs and (
+                            if (content_list[idx1], content_list[idx2],) not in pairs and (
                                 content_list[idx2],
                                 content_list[idx1],
                             ) not in pairs:
@@ -190,9 +188,7 @@ class LECRDataset(Dataset):
             if not use_all_pairs:
                 for content_id, topics in tqdm(content_to_topic.items()):
                     intersection_contents = list(
-                        set.intersection(
-                            *[set(topic_to_content[topic_id]) for topic_id in topics]
-                        )
+                        set.intersection(*[set(topic_to_content[topic_id]) for topic_id in topics])
                     )
                     for idx1 in range(len(intersection_contents) - 1):
                         for idx2 in range(idx1 + 1, len(intersection_contents)):
@@ -227,8 +223,7 @@ class LECRDataset(Dataset):
         probability_matrix = torch.full(inputs["input_ids"].shape, 0.15)
         masked_indices = torch.bernoulli(probability_matrix).bool()
         indices_replaced = (
-            torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool()
-            & masked_indices
+            torch.bernoulli(torch.full(inputs["input_ids"].shape, 0.8)).bool() & masked_indices
         )
         inputs["input_ids"][indices_replaced] = self.tokenizer.convert_tokens_to_ids(
             self.tokenizer.mask_token
@@ -372,6 +367,7 @@ class DatasetUpdateCallback(TrainerCallback):
         top_k=50,
         use_translated=False,
         mix_translated=False,
+        fold=0,
     ):
         super(DatasetUpdateCallback, self).__init__()
         self.trainer = trainer
@@ -382,6 +378,7 @@ class DatasetUpdateCallback(TrainerCallback):
         self.top_k = top_k
         self.use_translated = use_translated
         self.mix_translated = mix_translated
+        self.fold = fold
 
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.topic_dict, self.content_dict = topic_dict, content_dict
@@ -392,14 +389,10 @@ class DatasetUpdateCallback(TrainerCallback):
             if topic_id in train_topic_ids
         ]
         self.train_topic_ids = [
-            topic_id
-            for topic_id in self.topic_df.id.values
-            if topic_id in train_topic_ids
+            topic_id for topic_id in self.topic_df.id.values if topic_id in train_topic_ids
         ]
         self.train_topic_languages = []
-        for topic_id, topic_lang in zip(
-            self.topic_df.id.values, self.topic_df.language.values
-        ):
+        for topic_id, topic_lang in zip(self.topic_df.id.values, self.topic_df.language.values):
             if topic_id in train_topic_ids:
                 self.train_topic_languages.append(topic_lang)
 
@@ -409,13 +402,13 @@ class DatasetUpdateCallback(TrainerCallback):
             if topic_id in val_topic_ids
         ]
         self.val_topic_ids = [
-            topic_id
-            for topic_id in self.topic_df.id.values
-            if topic_id in val_topic_ids
+            topic_id for topic_id in self.topic_df.id.values if topic_id in val_topic_ids
         ]
 
         content_texts = [
-            content_dict[content_id] for content_id in self.content_df.id.values if content_id.startswith("c_")
+            content_dict[content_id]
+            for content_id in self.content_df.id.values
+            if content_id.startswith("c_")
         ]
 
         def inference_collate_fn(inputs):
@@ -431,7 +424,7 @@ class DatasetUpdateCallback(TrainerCallback):
         )
         self.train_topic_dataloader = DataLoader(
             train_topic_dataset,
-            num_workers=16,
+            num_workers=self.trainer.args.dataloader_num_workers,
             batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
@@ -442,7 +435,7 @@ class DatasetUpdateCallback(TrainerCallback):
         )
         self.val_topic_dataloader = DataLoader(
             val_topic_dataset,
-            num_workers=16,
+            num_workers=self.trainer.args.dataloader_num_workers,
             batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
@@ -453,7 +446,7 @@ class DatasetUpdateCallback(TrainerCallback):
         )
         self.content_dataloader = DataLoader(
             content_dataset,
-            num_workers=16,
+            num_workers=self.trainer.args.dataloader_num_workers,
             batch_size=32,
             shuffle=False,
             collate_fn=inference_collate_fn,
@@ -470,7 +463,7 @@ class DatasetUpdateCallback(TrainerCallback):
             print("On Epoch Begin")
             topic_embs = []
             device = f"cuda:{args.local_rank}" if torch.cuda.is_available() else "cpu"
-            
+
             with torch.no_grad():
                 for inputs in tqdm(self.val_topic_dataloader):
                     for k, v in inputs.items():
@@ -502,7 +495,7 @@ class DatasetUpdateCallback(TrainerCallback):
             print("Evaluating current score...")
             if self.use_translated:
                 # get 500 nearest contents, then select top k contents that is in original contents, just approximate, can't check all
-                original_indices = [ # indices of original contents in self.content_df
+                original_indices = [  # indices of original contents in self.content_df
                     i
                     for i, emb in enumerate(content_embs)
                     if self.content_df.id.values[i].startswith("c_")
@@ -575,14 +568,10 @@ class DatasetUpdateCallback(TrainerCallback):
                     predictions.append(p)
             else:
                 for selected_k in [5, 10, 20, 50, 100, 200]:
-                    neighbors_model = NearestNeighbors(
-                        n_neighbors=selected_k, metric="cosine"
-                    )
+                    neighbors_model = NearestNeighbors(n_neighbors=selected_k, metric="cosine")
                     neighbors_model.fit(content_embs_gpu)
 
-                    indices = neighbors_model.kneighbors(
-                        topic_embs_gpu, return_distance=False
-                    )
+                    indices = neighbors_model.kneighbors(topic_embs_gpu, return_distance=False)
                     predictions = []
                     for k in tqdm(range(len(indices))):
                         pred = indices[k]
@@ -643,17 +632,15 @@ class DatasetUpdateCallback(TrainerCallback):
             if score > self.best_score:
                 self.best_score = score
                 print("saving best model to data/ folder")
-                torch.save(
-                    self.trainer.model.state_dict(), f"data/siamese_model_{score}.pth"
-                )
+                # torch.save(self.trainer.model.state_dict(), f"data/siamese_model_{score}.pth")
 
             generate_new_dataset_every_epoch = True
             if generate_new_dataset_every_epoch or (score == self.best_score):
                 # generate new pairs in dataset
                 print("Building new validation supervised df")
-                new_val_supervised_df = build_new_supervised_df(
-                    knn_preds, self.correlation_df
-                )[["topics_ids", "content_ids", "target"]].sort_values(["topics_ids", "content_ids"])
+                new_val_supervised_df = build_new_supervised_df(knn_preds, self.correlation_df)[
+                    ["topic_id", "content_ids", "target"]
+                ].sort_values(["topic_id", "content_ids"])
                 if score == self.best_score:  # only save for the best checkpoint
                     print("saving new_val_supervised_df to data/ folder")
                     new_val_supervised_df.to_csv("data/new_val_supervised_df.csv")
@@ -688,7 +675,9 @@ class DatasetUpdateCallback(TrainerCallback):
                     pred = train_indices[k]
                     # p = " ".join([self.content_df.loc[ind, "id"] for ind in pred.get()])
                     if self.use_translated:
-                        p = " ".join([content_idx_to_id[original_indices[ind]] for ind in pred.get()])
+                        p = " ".join(
+                            [content_idx_to_id[original_indices[ind]] for ind in pred.get()]
+                        )
                     else:
                         p = " ".join([content_idx_to_id[ind] for ind in pred.get()])
 
@@ -762,14 +751,14 @@ class DatasetUpdateCallback(TrainerCallback):
                 if self.use_translated:
                     # Only add positive cases in training set for translated topics
                     translated_supervised_df = new_train_supervised_df[
-                        ~new_train_supervised_df.topics_ids.str.startswith("t_")
+                        ~new_train_supervised_df.topic_id.str.startswith("t_")
                         & new_train_supervised_df.target
                         == 1
                     ].copy()
 
                     # Only original contents for original topics
                     original_supervised_df = new_train_supervised_df[
-                        new_train_supervised_df.topics_ids.str.startswith("t_")
+                        new_train_supervised_df.topic_id.str.startswith("t_")
                         & new_train_supervised_df.content_ids.str.startswith("c_")
                     ].copy()
 
@@ -777,19 +766,27 @@ class DatasetUpdateCallback(TrainerCallback):
                     id_to_language = {}
                     for _, row in tqdm(self.topic_df.iterrows()):
                         id_to_language[row.id] = row.language
-                    
-                    original_supervised_df["language"] = original_supervised_df["topics_ids"].apply(lambda x: id_to_language[x])
-                    count_df = original_supervised_df[original_supervised_df.target == 1].groupby("language").size().reset_index(name='counts')
+
+                    original_supervised_df["language"] = original_supervised_df["topic_id"].apply(
+                        lambda x: id_to_language[x]
+                    )
+                    count_df = (
+                        original_supervised_df[original_supervised_df.target == 1]
+                        .groupby("language")
+                        .size()
+                        .reset_index(name="counts")
+                    )
 
                     count_dict = {}
                     for _, row in count_df.iterrows():
                         count_dict[row.language] = row.counts
 
                     times_positive_samples = 3
-                    translated_supervised_df["language"] = translated_supervised_df["topics_ids"].apply(lambda x: id_to_language[x])
+                    translated_supervised_df["language"] = translated_supervised_df[
+                        "topic_id"
+                    ].apply(lambda x: id_to_language[x])
                     translated_supervised_df = (
-                        translated_supervised_df
-                        .groupby("language")
+                        translated_supervised_df.groupby("language")
                         .apply(
                             lambda x: x.sample(
                                 n=count_dict[x["language"].iat[0]] * times_positive_samples,
@@ -803,7 +800,9 @@ class DatasetUpdateCallback(TrainerCallback):
 
                     new_train_supervised_df = pd.concat(
                         [translated_supervised_df, original_supervised_df]
-                    )[["topics_ids", "content_ids", "target"]].sort_values(["topics_ids", "content_ids"])
+                    )[["topic_id", "content_ids", "target"]].sort_values(
+                        ["topic_id", "content_ids"]
+                    )
 
                 if score == self.best_score:  # only save for the best checkpoint
                     print("saving new_train_supervised_df to data/ folder")
@@ -824,6 +823,9 @@ class DatasetUpdateCallback(TrainerCallback):
                     self.trainer.eval_dataset.content_texts,
                     self.trainer.eval_dataset.labels,
                 ) = self.trainer.eval_dataset.process_csv()
+                print("Saving knn csvs ...")
+                train_knn_preds.to_csv(f"data/train_knn_fold{self.fold}.csv")
+                knn_preds.to_csv(f"data/val_knn_fold{self.fold}.csv")
 
                 del (
                     train_topic_embs,
@@ -861,9 +863,7 @@ def build_new_supervised_df(knn_df, correlations):
 
     # get all class 1 in correlations
     topic_ids = set(knn_df.topic_id.values)
-    filtered_correlations = correlations[
-        correlations["topic_id"].isin(topic_ids)
-    ]
+    filtered_correlations = correlations[correlations["topic_id"].isin(topic_ids)]
     for i, row in tqdm(filtered_correlations.iterrows()):
         if str(row["content_ids"]) and str(row["content_ids"]) != "nan":
             content_ids = str(row["content_ids"]).split(" ")
@@ -885,7 +885,7 @@ def build_new_supervised_df(knn_df, correlations):
     mapping = list(mapping)
     new_df = pd.DataFrame(
         {
-            "topics_ids": [item[0] for item in mapping if item[1]],
+            "topic_id": [item[0] for item in mapping if item[1]],
             "content_ids": [item[1] for item in mapping if item[1]],
             "target": [item[2] for item in mapping if item[1]],
         }
