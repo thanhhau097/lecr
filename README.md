@@ -55,9 +55,14 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs_all-mpnet-base-v2/
 
 ### xlm-roberta-base
 ```
-CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 200 --fp16 --warmup_ratio 0.1 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name xlm-roberta-base  --model_name xlm-roberta-base --fold 0 --dataloader_num_workers 32 --learning_rate 2e-5  --num_train_epochs 50 --per_device_train_batch_size 128 --per_device_eval_batch_size 128 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --top_k_neighbors 50
+CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 200 --fp16 --warmup_ratio 0.1 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name xlm-roberta-base  --model_name xlm-roberta-base --fold 0 --dataloader_num_workers 32 --learning_rate 2e-5 --num_train_epochs 50 --per_device_train_batch_size 128 --per_device_eval_batch_size 128 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --top_k_neighbors 50
 ```
 
+### e5-small
+
+```
+python -m torch.distributed.launch --nproc_per_node 2 train.py --output_dir ./outputs_e5_small/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 2 --logging_strategy steps --logging_steps 50 --fp16 --warmup_ratio 0.01 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name intfloat/e5-small --model_name intfloat/e5-small --fold 0 --dataloader_num_workers 48 --learning_rate 8e-5 --num_train_epochs 40 --per_device_train_batch_size 256 --per_device_eval_batch_size 256 --remove_unused_columns False --overwrite_output_dir --load_best_model_at_end --objective siamese --max_len 128 --is_sentence_transformers --top_k_neighbors 50 --report_to none
+```
 
 # TODO:
 1. Embedding

@@ -10,7 +10,7 @@ from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
-from samplers import ProportionalTwoClassesBatchSampler
+from samplers import ProportionalTwoClassesBatchSampler, ProportionalTwoClassesBatchSamplerĐDP
 
 from typing import Iterable, Dict
 import torch.nn.functional as F
@@ -67,20 +67,29 @@ class CustomTrainer(Trainer):
         self.pos_neg_ratio = pos_neg_ratio
 
     def _get_train_sampler(self):
+        # check if using distributed training
         pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
+        if self.args.local_rank != -1:
+            return ProportionalTwoClassesBatchSamplerĐDP(
+                np.array(self.train_dataset.labels),
+                self.args.train_batch_size,
+                minority_size_in_batch=pos_bsize,
+                world_size=self.args.world_size,
+                local_rank=self.args.local_rank,
+            )
+
         return ProportionalTwoClassesBatchSampler(
             np.array(self.train_dataset.labels),
             self.args.train_batch_size,
             minority_size_in_batch=pos_bsize,
-            world_size=self.args.world_size,
-            local_rank=self.args.local_rank,
         )
 
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
         try:
             device = f"cuda:{model.module.local_rank}" if torch.cuda.is_available() else "cpu"
         except:
-            device = f"cuda:{model.local_rank}" if torch.cuda.is_available() else "cpu"
+            local_rank = 0 if model.local_rank == -1 else model.local_rank
+            device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
         for k, v in inputs["topic_inputs"].items():
             inputs["topic_inputs"][k] = inputs["topic_inputs"][k].to(device)
         for k, v in inputs["content_inputs"].items():

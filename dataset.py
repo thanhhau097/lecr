@@ -456,13 +456,14 @@ class DatasetUpdateCallback(TrainerCallback):
         self.on_epoch_end(args, state, control, **kwargs)
 
     def on_epoch_end(self, args, state, control, **kwargs):
-        with cp.cuda.Device(args.local_rank):
+        local_rank = args.local_rank if args.local_rank != -1 else 0
+        with cp.cuda.Device(local_rank):
             torch.cuda.empty_cache()
-            print("Callback on local_rank =", args.local_rank)
+            print("Callback on local_rank =", local_rank)
             self.trainer.model.eval()
             print("On Epoch Begin")
             topic_embs = []
-            device = f"cuda:{args.local_rank}" if torch.cuda.is_available() else "cpu"
+            device = f"cuda:{local_rank}" if torch.cuda.is_available() else "cpu"
 
             with torch.no_grad():
                 for inputs in tqdm(self.val_topic_dataloader):
@@ -480,7 +481,7 @@ class DatasetUpdateCallback(TrainerCallback):
                     content_embs.extend(out.cpu().detach().numpy())
 
             # Transfer predictions to gpu
-            with cp.cuda.Device(args.local_rank):
+            with cp.cuda.Device(local_rank):
                 topic_embs_gpu = cp.array(topic_embs)
                 content_embs_gpu = cp.array(content_embs)
 
@@ -657,7 +658,7 @@ class DatasetUpdateCallback(TrainerCallback):
                         out = self.trainer.model.feature(inputs)
                         train_topic_embs.extend(out.cpu().detach().numpy())
 
-                with cp.cuda.Device(args.local_rank):
+                with cp.cuda.Device(local_rank):
                     train_topic_embs_gpu = cp.array(train_topic_embs)
 
                 train_indices = neighbors_model.kneighbors(

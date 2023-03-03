@@ -158,7 +158,7 @@ def main():
                 {"weight": checkpoint["fc.weight"], "bias": checkpoint["fc.bias"]}
             )
 
-    device = f"cuda:{training_args.local_rank}" if torch.cuda.is_available() else "cpu"
+    device = f"cuda:{training_args.local_rank if training_args.local_rank != -1 else 0}" if torch.cuda.is_available() else "cpu"
     model = model.to(device)
 
     print("Start training...")
