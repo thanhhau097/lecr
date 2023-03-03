@@ -44,7 +44,7 @@ class LECRDataset(Dataset):
 
     def process_csv(self):
         # get text pairs
-        topic_ids = self.supervised_df.topics_ids.values
+        topic_ids = self.supervised_df.topic_id.values
         content_ids = self.supervised_df.content_ids.values
         labels = list(self.supervised_df.target.values)
 
@@ -169,7 +169,7 @@ class LECRDataset(Dataset):
                 topic_inputs = augment(topic_inputs, self.tokenizer)
                 content_inputs = augment(content_inputs, self.tokenizer)
 
-            topic_id = self.supervised_df.topics_ids.values[idx]
+            topic_id = self.supervised_df.topic_id.values[idx]
             return topic_inputs, content_inputs, topic_id, label
         elif self.objective == "classification":
             combined_inputs = self.tokenizer.encode_plus(
@@ -220,7 +220,7 @@ class LECRTripletDataset(Dataset):
         self.topic_texts, self.pos_content_texts, self.neg_content_texts = self.process_csv()
 
     def process_csv(self):
-        topic_ids = self.supervised_df["topics_ids"].values
+        topic_ids = self.supervised_df["topic_id"].values
         pos_content_ids = self.supervised_df["pos_content_ids"].values
         neg_content_ids = self.supervised_df["neg_content_ids"].values
 

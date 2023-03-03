@@ -76,7 +76,7 @@ class ProportionalTwoClassesBatchSampler(Sampler):
 class TopicSampler(Sampler):
     def __init__(self, topics_ids, labels, batch_size, per_topic_batch_size=32):
 
-        self.topics_ids = topics_ids
+        self.topic_id = topics_ids
         self.labels = labels
         self.batch_size = batch_size
         self.per_topic_batch_size = per_topic_batch_size
@@ -94,19 +94,19 @@ class TopicSampler(Sampler):
             indices = topics2indices.get(topic_id)
             self.topics_dict[topic_id] = (np.array(indices), labels[indices])
 
-        self.topics_ids_list = np.unique(topics_ids)
+        self.topic_id_list = np.unique(topics_ids)
         self.num_topics_per_batch = self.batch_size // self.per_topic_batch_size
         self.per_topic_batch_size = self.per_topic_batch_size
         self.batch_size = self.batch_size
         self._dataset_length = (
-            len(self.topics_ids_list) // self.num_topics_per_batch + 1
+            len(self.topic_id_list) // self.num_topics_per_batch + 1
         ) * self.batch_size
 
     def __len__(self):
         return self._dataset_length
 
     def __iter__(self):
-        topics_ids_list = np.random.permutation(self.topics_ids_list)
+        topics_ids_list = np.random.permutation(self.topic_id_list)
 
         indices = []
         for i in tqdm(range(0, len(topics_ids_list), self.num_topics_per_batch)):
@@ -141,5 +141,5 @@ if __name__ == "__main__":
     import pandas as pd
 
     df = pd.read_csv("data/new_train_supervised_df.csv")
-    sampler = TopicSampler(df.topics_ids.values, df.target.values, 128)
+    sampler = TopicSampler(df.topic_id.values, df.target.values, 128)
     inds = list(iter(sampler))

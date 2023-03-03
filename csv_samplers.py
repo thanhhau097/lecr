@@ -38,7 +38,7 @@ def build_new_supervised_df(knn_df, correlations, reduce_negatives=False):
     mapping = list(mapping)
     new_df = pd.DataFrame(
         {
-            "topics_ids": [item[0] for item in mapping if item[1]],
+            "topic_id": [item[0] for item in mapping if item[1]],
             "content_ids": [item[1] for item in mapping if item[1]],
             "target": [item[2] for item in mapping if item[1]],
         }
@@ -80,7 +80,7 @@ def build_triplet_df(knn_df, correlations):
 
     # Build training dataset
     mapping = list(mapping)
-    new_df = pd.DataFrame(mapping, columns=["topics_ids", "pos_content_ids", "neg_content_ids"])
+    new_df = pd.DataFrame(mapping, columns=["topic_id", "pos_content_ids", "neg_content_ids"])
 
     # Release memory
     del mapping, topic2positivecontents, topic2topkcontents

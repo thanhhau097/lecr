@@ -20,7 +20,7 @@ class CustomTrainer(Trainer):
     def _get_train_sampler(self):
         if self.use_topic_sampler:
             return TopicSampler(
-                self.train_dataset.supervised_df.topics_ids.values,
+                self.train_dataset.supervised_df.topic_id.values,
                 self.train_dataset.supervised_df.target.values,
                 self.args.train_batch_size,
                 per_topic_batch_size=24,

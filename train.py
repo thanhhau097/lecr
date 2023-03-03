@@ -77,10 +77,10 @@ def main():
     train_df = data_df[data_df["fold"] != fold].reset_index(drop=True)
     val_df = data_df[data_df["fold"] == fold].reset_index(drop=True)
     if data_args.use_no_content_topics:
-        train_topic_ids = set(topic_df.id.values).difference(set(val_df.topics_ids.values))
+        train_topic_ids = set(topic_df.id.values).difference(set(val_df.topic_id.values))
     else:
-        train_topic_ids = set(train_df.topics_ids.values)
-    val_topic_ids = set(val_df.topics_ids.values)
+        train_topic_ids = set(train_df.topic_id.values)
+    val_topic_ids = set(val_df.topic_id.values)
 
     if data_args.use_translated:
         print("Reading translated topic data CSV", data_args.translated_topic_path)
@@ -196,10 +196,10 @@ def main():
         top_k=data_args.top_k_neighbors,
         use_translated=data_args.use_translated,
         use_triplets=model_args.objective == "triplet",
-        reduce_negatives=True,
+        reduce_negatives=False,
+        fold=data_args.fold
     )
     trainer.add_callback(callback)
-    callback.on_epoch_end(None, None, None)
 
     # Training
     if training_args.do_train:
