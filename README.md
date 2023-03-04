@@ -57,12 +57,25 @@ CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs_all-mpnet-base-v2/
 ```
 CUDA_VISIBLE_DEVICES=0 python train.py --output_dir ./outputs/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 5 --logging_strategy steps --logging_steps 200 --fp16 --warmup_ratio 0.1 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name xlm-roberta-base  --model_name xlm-roberta-base --fold 0 --dataloader_num_workers 32 --learning_rate 2e-5 --num_train_epochs 50 --per_device_train_batch_size 128 --per_device_eval_batch_size 128 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --top_k_neighbors 50
 ```
+# LLaMA 
 
+This repository is intended as a minimal, hackable and readable example to load [LLaMA](https://ai.facebook.com/blog/large-language-model-llama-meta-ai/) ([arXiv](https://arxiv.org/abs/2302.13971v1)) models and run inference.
+In order to download the checkpoints and tokenizer, fill this [google form](https://forms.gle/jk851eBVbX1m5TAv5) or if you want to save our bandwidth use this BitTorrent link: "[magnet:?xt=urn:btih:ZXXDAUWYLRUXXBHUYEMS6Q5CE5WA3LVA&dn=LLaMA](magnet:?xt=urn:btih:ZXXDAUWYLRUXXBHUYEMS6Q5CE5WA3LVA&dn=LLaMA)".
+
+### Setup
+In a conda env with pytorch / cuda available, run
 ### e5-small
 
 ```
-python -m torch.distributed.launch --nproc_per_node 2 train.py --output_dir ./outputs_e5_small/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 2 --logging_strategy steps --logging_steps 50 --fp16 --warmup_ratio 0.01 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name intfloat/e5-small --model_name intfloat/e5-small --fold 0 --dataloader_num_workers 48 --learning_rate 8e-5 --num_train_epochs 40 --per_device_train_batch_size 256 --per_device_eval_batch_size 256 --remove_unused_columns False --overwrite_output_dir --load_best_model_at_end --objective siamese --max_len 128 --is_sentence_transformers --top_k_neighbors 50 --report_to none
+python -m torch.distributed.launch --nproc_per_node 2 train.py --output_dir ./outputs_e5_small/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 2 --logging_strategy steps --logging_steps 50 --fp16 --warmup_ratio 0.01 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name intfloat/e5-small --model_name intfloat/e5-small --fold 0 --dataloader_num_workers 48 --learning_rate 8e-5 --num_train_epochs 40 --per_device_train_batch_size 256 --per_device_eval_batch_size 256 --remove_unused_columns False --overwrite_output_dir --load_best_model_at_end --objective siamese --max_len 128 --is_sentence_transformers --top_k_neighbors 50 --report_to --gradient_accumulation_steps 4 none
 ```
+### sentence-transformers/paraphrase-MiniLM-L3-v2
+```
+python -m torch.distributed.launch --nproc_per_node 2 train.py --output_dir ./outputs_e5_small/ --evaluation_strategy epoch --save_strategy epoch --save_total_limit 2 --logging_strategy steps --logging_steps 50 --fp16 --warmup_ratio 0.01 --lr_scheduler_type cosine --adam_eps 1e-6 --optim adamw_torch --do_train --do_eval --metric_for_best_model eval_loss --tokenizer_name sentence-transformers/paraphrase-MiniLM-L3-v2 --model_name sentence-transformers/paraphrase-MiniLM-L3-v2 --fold 0 --dataloader_num_workers 48 --learning_rate 8e-5 --num_train_epochs 40 --per_device_train_batch_size 768 --per_device_eval_batch_size 768 --remove_unused_columns False --load_best_model_at_end --objective siamese --max_len 128 --is_sentence_transformers --top_k_neighbors 50 --report_to --gradient_accumulation_steps 4 none --overwrite_output_dir
+```
+
+
+
 
 # TODO:
 1. Embedding

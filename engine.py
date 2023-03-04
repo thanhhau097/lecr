@@ -10,7 +10,7 @@ from transformers import Trainer
 from transformers.trainer_pt_utils import nested_detach
 
 from model import Model
-from samplers import ProportionalTwoClassesBatchSampler, ProportionalTwoClassesBatchSamplerĐDP
+from samplers import ProportionalTwoClassesBatchSampler, ProportionalTwoClassesBatchSamplerDDP
 
 from typing import Iterable, Dict
 import torch.nn.functional as F
@@ -70,7 +70,7 @@ class CustomTrainer(Trainer):
         # check if using distributed training
         pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
         if self.args.local_rank != -1:
-            return ProportionalTwoClassesBatchSamplerĐDP(
+            return ProportionalTwoClassesBatchSamplerDDP(
                 np.array(self.train_dataset.labels),
                 self.args.train_batch_size,
                 minority_size_in_batch=pos_bsize,

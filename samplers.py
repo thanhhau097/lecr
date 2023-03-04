@@ -5,7 +5,7 @@ from torch.utils.data import Sampler
 from tqdm import tqdm
 
 
-class ProportionalTwoClassesBatchSamplerĐDP(Sampler):
+class ProportionalTwoClassesBatchSamplerDDP(Sampler):
     """
     dataset: DataSet class that returns torch tensors
     batch_size: Size of mini-batches
