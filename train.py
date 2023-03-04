@@ -77,10 +77,10 @@ def main():
     correlation_df = pd.read_csv(data_args.correlation_path)
 
     if data_args.use_no_content_topics:
-        train_topic_ids = set(topic_df.id.values).difference(set(data_df[data_df["fold"] == fold].topics_ids.values))
+        train_topic_ids = set(topic_df.id.values).difference(set(data_df[data_df["fold"] == fold].topic_id.values))
     else:
-        train_topic_ids = set(data_df[data_df["fold"] != fold].topics_ids.values)
-    val_topic_ids = set(data_df[data_df["fold"] == fold].topics_ids.values)
+        train_topic_ids = set(data_df[data_df["fold"] != fold].topic_id.values)
+    val_topic_ids = set(data_df[data_df["fold"] == fold].topic_id.values)
 
     if data_args.use_translated:
         print("Reading translated topic data CSV", data_args.translated_topic_path)
