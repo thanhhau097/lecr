@@ -49,6 +49,8 @@ class SentenceTransformerModel(nn.Module):
         super(SentenceTransformerModel, self).__init__()
 
         self.local_rank = local_rank
+        self.objective = objective
+        self.is_sentence_transformers = is_sentence_transformers
         self.tokenizer = init_tokenizer(tokenizer_name)
         self.model = SentenceTransformer(model_name)
         self.model[0].auto_model.resize_token_embeddings(len(self.tokenizer))
