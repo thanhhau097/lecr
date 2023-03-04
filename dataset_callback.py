@@ -130,8 +130,8 @@ class DatasetUpdateCallback(TrainerCallback):
             collate_fn=inference_collate_fn,
         )
 
-    def on_train_begin(self, args, state, control, **kwargs):
-        self.on_epoch_end(args, state, control, **kwargs)
+    # def on_train_begin(self, args, state, control, **kwargs):
+    #     self.on_epoch_end(args, state, control, **kwargs)
 
     @torch.no_grad()
     def on_epoch_end(self, args, state, control, **kwargs):
