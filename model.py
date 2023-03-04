@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from sentence_transformers import SentenceTransformer
 from torch import nn
 from torch.nn.functional import cosine_similarity
 from transformers import AutoConfig, AutoModel
@@ -34,6 +35,32 @@ class MeanPooling(nn.Module):
             sum_mask = torch.clamp(sum_mask, min=1e-9)
             mean_embeddings = sum_embeddings / sum_mask
             return mean_embeddings
+
+
+class SentenceTransformerModel(nn.Module):
+    def __init__(
+        self,
+        tokenizer_name="sentence-transformers/sentence-t5-base",
+        model_name="sentence-transformers/sentence-t5-base",
+        objective="siamese",
+        is_sentence_transformers=True,
+        local_rank=-1,
+    ):
+        super(SentenceTransformerModel, self).__init__()
+
+        self.local_rank = local_rank
+        self.tokenizer = init_tokenizer(tokenizer_name)
+        self.model = SentenceTransformer(model_name)
+        self.model[0].auto_model.resize_token_embeddings(len(self.tokenizer))
+
+    def feature(self, inputs):
+        outputs = self.model(inputs)
+        return outputs["sentence_embedding"]
+
+    def forward(self, topic_inputs, content_inputs, combined_inputs, labels=None):
+        topic_features = self.feature(topic_inputs)
+        content_features = self.feature(content_inputs)
+        return topic_features, content_features
 
 
 class Model(nn.Module):

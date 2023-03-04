@@ -13,10 +13,9 @@ from transformers.trainer_utils import get_last_checkpoint, is_main_process
 from data_args import DataArguments
 from dataset import DatasetUpdateCallback, LECRDataset, collate_fn, init_tokenizer
 from engine import CustomTrainer, compute_metrics
-from model import Model
+from model import Model, SentenceTransformerModel
 from model_args import ModelArguments
 from utils import get_processed_text_dict
-
 
 torch.set_float32_matmul_precision("high")
 logger = logging.getLogger(__name__)
@@ -54,9 +53,7 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    logger.setLevel(
-        logging.INFO if is_main_process(training_args.local_rank) else logging.WARN
-    )
+    logger.setLevel(logging.INFO if is_main_process(training_args.local_rank) else logging.WARN)
     # Set the verbosity to info of the Transformers logger (on main process only):
     if is_main_process(training_args.local_rank):
         # transformers.utils.logging.set_verbosity_info()
@@ -77,7 +74,9 @@ def main():
     correlation_df = pd.read_csv(data_args.correlation_path)
 
     if data_args.use_no_content_topics:
-        train_topic_ids = set(topic_df.id.values).difference(set(data_df[data_df["fold"] == fold].topic_id.values))
+        train_topic_ids = set(topic_df.id.values).difference(
+            set(data_df[data_df["fold"] == fold].topic_id.values)
+        )
     else:
         train_topic_ids = set(data_df[data_df["fold"] != fold].topic_id.values)
     val_topic_ids = set(data_df[data_df["fold"] == fold].topic_id.values)
@@ -93,18 +92,25 @@ def main():
         # add to topic_df, content_df, correlation_df
         # about correlation_df, for training set, we add all correlations
         # but for validation set, we only keep the original ones
-        topic_df = pd.concat([topic_df, translated_topic_df.drop(columns=["origin_id", "origin_parent"])], ignore_index=True)
-        content_df = pd.concat([content_df, translated_content_df.drop(columns=["origin_id"])], ignore_index=True)
-        
+        topic_df = pd.concat(
+            [topic_df, translated_topic_df.drop(columns=["origin_id", "origin_parent"])],
+            ignore_index=True,
+        )
+        content_df = pd.concat(
+            [content_df, translated_content_df.drop(columns=["origin_id"])], ignore_index=True
+        )
+
         # drop all rows that contains val topic_ids in translated_correlation_df
-        train_topic_ids = set(train_topic_ids).union(set(translated_topic_df[translated_topic_df.origin_id.isin(train_topic_ids)].id.values))
-        translated_correlation_df = translated_correlation_df[translated_correlation_df.topic_id.isin(train_topic_ids)]
+        train_topic_ids = set(train_topic_ids).union(
+            set(translated_topic_df[translated_topic_df.origin_id.isin(train_topic_ids)].id.values)
+        )
+        translated_correlation_df = translated_correlation_df[
+            translated_correlation_df.topic_id.isin(train_topic_ids)
+        ]
         correlation_df = pd.concat([correlation_df, translated_correlation_df], ignore_index=True)
 
     tokenizer = init_tokenizer(model_args.tokenizer_name)
-    topic_dict, content_dict = get_processed_text_dict(
-        topic_df, content_df, tokenizer.sep_token
-    )
+    topic_dict, content_dict = get_processed_text_dict(topic_df, content_df, tokenizer.sep_token)
 
     train_dataset = LECRDataset(
         supervised_df=data_df[data_df["fold"] != fold],
@@ -138,13 +144,22 @@ def main():
 
     # Initialize trainer
     print("Initializing model...")
-    model = Model(
-        tokenizer_name=model_args.tokenizer_name,
-        model_name=model_args.model_name,
-        objective=model_args.objective,
-        is_sentence_transformers=model_args.is_sentence_transformers,
-        local_rank=training_args.local_rank,
-    )
+    if "sentence-t5" in model_args.model_name:
+        model = SentenceTransformerModel(
+            tokenizer_name=model_args.tokenizer_name,
+            model_name=model_args.model_name,
+            objective=model_args.objective,
+            is_sentence_transformers=True,
+            local_rank=training_args.local_rank,
+        )
+    else:
+        model = Model(
+            tokenizer_name=model_args.tokenizer_name,
+            model_name=model_args.model_name,
+            objective=model_args.objective,
+            is_sentence_transformers=model_args.is_sentence_transformers,
+            local_rank=training_args.local_rank,
+        )
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
@@ -158,7 +173,11 @@ def main():
                 {"weight": checkpoint["fc.weight"], "bias": checkpoint["fc.bias"]}
             )
 
-    device = f"cuda:{training_args.local_rank if training_args.local_rank != -1 else 0}" if torch.cuda.is_available() else "cpu"
+    device = (
+        f"cuda:{training_args.local_rank if training_args.local_rank != -1 else 0}"
+        if torch.cuda.is_available()
+        else "cpu"
+    )
     model = model.to(device)
 
     print("Start training...")
