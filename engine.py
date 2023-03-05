@@ -66,13 +66,13 @@ class CustomTrainer(Trainer):
         super().__init__(**kwargs)
         self.pos_neg_ratio = pos_neg_ratio
 
-    def _get_train_sampler(self):
-        pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
-        return ProportionalTwoClassesBatchSampler(
-            np.array(self.train_dataset.labels),
-            self.args.train_batch_size,
-            minority_size_in_batch=pos_bsize,
-        )
+    # def _get_train_sampler(self):
+    #     pos_bsize = self.args.train_batch_size // (self.pos_neg_ratio + 1)
+    #     return ProportionalTwoClassesBatchSampler(
+    #         np.array(self.train_dataset.labels),
+    #         self.args.train_batch_size,
+    #         minority_size_in_batch=pos_bsize,
+    #     )
 
     def compute_loss(self, model: Model, inputs: Dict, return_outputs=False):
         device = "cuda" if torch.cuda.is_available() else "cpu"
