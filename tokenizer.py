@@ -91,6 +91,6 @@ def init_tokenizer(tokenizer_name):
             + RELATION_TOKENS
         )
     )
-    if "sentence-t5" in tokenizer_name:
+    if "t5" in tokenizer_name:
         tokenizer.add_special_tokens({"sep_token": "<sep>"})
     return tokenizer

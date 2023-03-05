@@ -12,7 +12,7 @@ from data_args import DataArguments
 from dataset import build_dataset_and_collator
 from dataset_callback import DatasetUpdateCallback
 from engine import CustomTrainer, compute_metrics
-from model import Model
+from model import Model, SentenceTransformerModel
 from model_args import ModelArguments
 from tokenizer import init_tokenizer
 from utils import get_processed_text_dict
@@ -151,12 +151,20 @@ def main():
 
     # Initialize trainer
     print("Initializing model...")
-    model = Model(
-        tokenizer_name=model_args.tokenizer_name,
-        model_name=model_args.model_name,
-        objective=model_args.objective,
-        is_sentence_transformers=model_args.is_sentence_transformers,
-    )
+    if "t5" in model_args.model_name:
+        model = SentenceTransformerModel(
+            tokenizer_name=model_args.tokenizer_name,
+            model_name=model_args.model_name,
+            objective=model_args.objective,
+            is_sentence_transformers=True,
+        )
+    else:
+        model = Model(
+            tokenizer_name=model_args.tokenizer_name,
+            model_name=model_args.model_name,
+            objective=model_args.objective,
+            is_sentence_transformers=model_args.is_sentence_transformers,
+        )
     if last_checkpoint is None and model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
@@ -196,8 +204,8 @@ def main():
         top_k=data_args.top_k_neighbors,
         use_translated=data_args.use_translated,
         use_triplets=model_args.objective == "triplet",
-        reduce_negatives=False,
-        fold=data_args.fold
+        reduce_negatives=data_args.reduce_neg,
+        fold=data_args.fold,
     )
     trainer.add_callback(callback)
     callback.on_epoch_end(None, None, None)

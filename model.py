@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from sentence_transformers import SentenceTransformer
 from torch import nn
 from transformers import AutoConfig, AutoModel
 
@@ -32,6 +33,32 @@ class MeanPooling(nn.Module):
         mean_embeddings = sum_embeddings / sum_mask
         mean_embeddings = F.normalize(mean_embeddings, p=2, dim=1)
         return mean_embeddings
+
+
+class SentenceTransformerModel(nn.Module):
+    def __init__(
+        self,
+        tokenizer_name="sentence-transformers/sentence-t5-base",
+        model_name="sentence-transformers/sentence-t5-base",
+        objective="siamese",
+        is_sentence_transformers=True,
+    ):
+        super(SentenceTransformerModel, self).__init__()
+
+        self.objective = objective
+        self.is_sentence_transformers = is_sentence_transformers
+        self.tokenizer = init_tokenizer(tokenizer_name)
+        self.model = SentenceTransformer(model_name)
+        self.model[0].auto_model.resize_token_embeddings(len(self.tokenizer))
+
+    def feature(self, inputs):
+        outputs = self.model(inputs)
+        return F.normalize(outputs["sentence_embedding"])
+
+    def forward(self, topic_inputs, content_inputs, combined_inputs=None, labels=None):
+        topic_features = self.feature(topic_inputs)
+        content_features = self.feature(content_inputs)
+        return topic_features, content_features
 
 
 class Model(nn.Module):
