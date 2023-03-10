@@ -54,7 +54,9 @@ def main():
         datefmt="%m/%d/%Y %H:%M:%S",
         handlers=[logging.StreamHandler(sys.stdout)],
     )
-    logger.setLevel(logging.INFO if is_main_process(training_args.local_rank) else logging.WARN)
+    logger.setLevel(
+        logging.INFO if is_main_process(training_args.local_rank) else logging.WARN
+    )
     # Set the verbosity to info of the Transformers logger (on main process only):
     if is_main_process(training_args.local_rank):
         # transformers.utils.logging.set_verbosity_info()
@@ -77,7 +79,9 @@ def main():
     train_df = data_df[data_df["fold"] != fold].reset_index(drop=True)
     val_df = data_df[data_df["fold"] == fold].reset_index(drop=True)
     if data_args.use_no_content_topics:
-        train_topic_ids = set(topic_df.id.values).difference(set(val_df.topic_id.values))
+        train_topic_ids = set(topic_df.id.values).difference(
+            set(val_df.topic_id.values)
+        )
     else:
         train_topic_ids = set(train_df.topic_id.values)
     val_topic_ids = set(val_df.topic_id.values)
@@ -110,15 +114,23 @@ def main():
 
         # drop all rows that contains val topic_ids in translated_correlation_df
         train_topic_ids = set(train_topic_ids).union(
-            set(translated_topic_df[translated_topic_df.origin_id.isin(train_topic_ids)].id.values)
+            set(
+                translated_topic_df[
+                    translated_topic_df.origin_id.isin(train_topic_ids)
+                ].id.values
+            )
         )
         translated_correlation_df = translated_correlation_df[
             translated_correlation_df.topic_id.isin(train_topic_ids)
         ]
-        correlation_df = pd.concat([correlation_df, translated_correlation_df], ignore_index=True)
+        correlation_df = pd.concat(
+            [correlation_df, translated_correlation_df], ignore_index=True
+        )
 
     tokenizer = init_tokenizer(model_args.tokenizer_name)
-    topic_dict, content_dict = get_processed_text_dict(topic_df, content_df, tokenizer.sep_token)
+    topic_dict, content_dict = get_processed_text_dict(
+        topic_df, content_df, tokenizer.sep_token
+    )
     train_dataset, collate_fn = build_dataset_and_collator(
         supervised_df=train_df,
         topic_df=topic_df,
@@ -165,7 +177,7 @@ def main():
             objective=model_args.objective,
             is_sentence_transformers=model_args.is_sentence_transformers,
         )
-    if last_checkpoint is None and model_args.resume is not None:
+    if model_args.resume is not None:
         logger.info(f"Loading {model_args.resume} ...")
         checkpoint = torch.load(model_args.resume, "cpu")
         if "state_dict" in checkpoint:
